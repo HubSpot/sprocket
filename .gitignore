@@ -1,0 +1,32 @@
+*.py[co]
+*.pyc
+*~
+*.ropeproject
+venv
+*.sw*
+*.coverage
+
+*flymake.py
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+
+# Installer logs
+pip-log.txt
+
+# OS Stuff
+.DS_Store
+
+# Weird backup files of some sort
+\#*#
+.\#*
