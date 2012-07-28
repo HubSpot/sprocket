@@ -141,7 +141,7 @@ class DjangoModelResource(BaseApiResource):
 
 
 
-class ModelEvents(object):
+class ModelEvents(MagicEnum):
     prepare_create = Val()
     validate_create = Val()
     process_create = Val()

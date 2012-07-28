@@ -7,7 +7,7 @@ from django.http import HttpResponse, HttpRequest
 from django.utils import simplejson as json
 from django.views.decorators.csrf import csrf_exempt
 
-from .utils import MagicEnum, Val
+from .utils import MagicEnum, Val, magic_enum_meta_cls
 from .auth import DefaultAuthentication
 from .fields import ApiField
 
@@ -22,24 +22,26 @@ class ResourceMeta(object):
 
 class BaseApiResource(object):
     _meta = ResourceMeta() # Both of these are overwritten by the __new__ method, but we keep them
-    _fields = []   # them here so pylint can do better type inference
-    _urls = []
+    _fields = ()   # them here so pylint can do better type inference
+    urls = ()
     _event_handlers = None
 
     class Meta(ResourceMeta):
         resource_name = 'base-api-resource'
         authentication = DefaultAuthentication()
 
-    def __new__(self, typ, *args, **kwargs):
+    def __new__(typ, *args, **kwargs):
         obj = object.__new__(typ, *args, **kwargs)        
         obj._meta = obj.Meta()
         return obj
 
     def __init__(self, *args, **kwargs):
+        self._event_handlers = {}
         self._merge_in_mixins()
         self._fields = self._init_fields()
-        self._urls = self._build_urls()
-        self._event_handlers = {}
+        self.urls = self._build_urls()
+
+ 
 
     # Initialize endpoints and mixins
     def _merge_in_mixins(self):
@@ -76,7 +78,7 @@ class BaseApiResource(object):
 
     def _build_urls(self):
         urls = []
-        for endpoint in self.get_base_endpoints():
+        for endpoint in self._get_all_endpoints():
             urls.append(url(
                     endpoint.url_pattern,
                     self.wrap(endpoint), 
@@ -88,11 +90,11 @@ class BaseApiResource(object):
         endpoints.extend(self.get_override_endpoints())
         for mixin in self.mixins:
             endpoints.extend(mixin.get_endpoints())
-        endpoints.extend(self.get_base_endpoints())
+        endpoints.extend(self.get_endpoints())
 
         return endpoints
 
-    def get_base_endpoints(self):
+    def get_endpoints(self):
         # Override me in a subclass, return a list of Endpoint objects
         raise NotImplementedError()
 
@@ -210,7 +212,7 @@ class BaseApiResource(object):
         handler = getattr(self, 'on_' + event_name, None)
         if handler:
             handlers.append(handler)
-        return handler
+        return handlers
 
     # Fields and Serialization
     def _init_fields(self):
@@ -341,19 +343,29 @@ class EndPoint(object):
     def __init__(
         self, 
         url_pattern, 
-        http_method_to_api_method,
+        GET=None,
+        DELETE=None,
+        POST=None,
+        PUT=None,
         name='',
         kwargs_filters=(),
-        to_response=None):
+        to_response_func=None):
         self.url_pattern = url_pattern
-        self.http_method_to_api_method = http_method_to_api_method
+        self.http_method_to_api_method = {
+            'GET': GET,
+            'DELETE': DELETE,
+            'POST': POST,
+            'PUT': PUT
+            }
         self.kwargs_filters = kwargs_filters
         self.name = name
-        self.to_response = to_response
-        if self.to_response == None:
-            self.to_response = lambda o: None
+        self.to_response_func = to_response_func
+        if self.to_response_func == None:
+            self.to_response_func = lambda o: None
 
 class BaseEvents(object):
+    __metaclass__ = magic_enum_meta_cls
+
     authenticate = Val()
     adjust_kwargs_for_request = Val()
     process_response = Val()

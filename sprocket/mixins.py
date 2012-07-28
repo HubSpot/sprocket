@@ -22,4 +22,3 @@ class BaseMixin(object):
     def mixin_urls(self):
         return []
 
-
