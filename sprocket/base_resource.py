@@ -20,6 +20,7 @@ class ResourceMeta(object):
     included = []
     excluded = []
 
+
 class BaseApiResource(object):
     _meta = ResourceMeta() # Both of these are overwritten by the __new__ method, but we keep them
     _fields = ()   # them here so pylint can do better type inference
@@ -118,7 +119,7 @@ class BaseApiResource(object):
             except ApiError, ex:
                 traceback.print_exc()
                 return self.handle_server_error(request, endpoint, ex, ex.to_response())
-            except Exception:
+            except Exception, ex:
                 traceback.print_exc()
                 return self.handle_server_error(
                     request, 
@@ -126,26 +127,25 @@ class BaseApiResource(object):
                     ex, 
                     HttpResponse(
                         json.dumps({'message': 'There was an internal error'}),
-                        status_code=500)
-                    )
+                        status=500
+                    ))
             finally:
                 _current.request = None
         return handler
 
     def _dispatch(self, endpoint, request, kwargs):
-        if not self._authenticate(request):
-            return HttpResponse(status=403)
+        self._authenticate(request)
         if not request.method in endpoint.http_method_to_api_method:
             return HttpResponse(status=405)
         method = getattr(self, endpoint.http_method_to_api_method.get(request.method))
         self._adjust_kwargs(endpoint, request, kwargs)
-        result = method(request, **kwargs)
+        result = method(**kwargs)
         response = self._result_to_response(result)
         self.execute_handlers(BaseEvents.process_response, response)
         return response
 
     def _authenticate(self, request):
-        self.execute_handlers(BaseEvents.authenticate)
+        self.execute_handlers(BaseEvents.authenticate, request)
 
     def _adjust_kwargs(self, endpoint, request, kwargs):
         if 'resource_name' in kwargs:
@@ -160,10 +160,10 @@ class BaseApiResource(object):
         self.execute_handlers(BaseEvents.adjust_kwargs_for_request, request, kwargs, data)
 
         for filter in endpoint.kwargs_filters:
-            filter(request, kwargs, data)
+            filter(self, request, kwargs, data)
 
     def _result_to_response(self, result):
-        response = result.endpoint.to_response(result)
+        response = self.current_request.endpoint.to_response_func(result)
         if response:
             return response
         if isinstance(result, HttpResponse):
@@ -172,10 +172,12 @@ class BaseApiResource(object):
             return HttpResponse(result)
         elif isinstance(result, dict):
             return HttpResponse(json.dumps(result))
+        elif isinstance(result, list) and len(result) > 0 and isinstance(result[0], self._meta.model_class):
+            return HttpResponse(self.obj_list_to_str(result))
         elif isinstance(result, list):
             return HttpResponse(json.dumps(result))
         elif isinstance(result, self._meta.model_class):
-            return HttpResponse(self.serialize(result))
+            return HttpResponse(self.obj_to_str(result))
         elif result == None and self.current_request.method == 'GET':
             return HttpResponse('{"message": "Object not found"}', status=404)
         else:
@@ -236,7 +238,7 @@ class BaseApiResource(object):
                 continue
             if included and field.name not in included:
                 continue
-            data.update(field.obj_to_dict(obj))
+            field.obj_to_dict(obj, data)
         self.execute_handlers(BaseEvents.obj_to_dict, obj, data)
         return data
 
@@ -295,6 +297,11 @@ class BaseApiResource(object):
         else:
             return user.username
 
+    # Default event handlers, to be overridden in subclasses
+    def on_authenticate(self, request):
+        if not request.user.is_authenticated():
+            raise UnauthenticatedError("This is not an authenticated request")
+
 class EmptyRequest(HttpRequest):
     def __nonzero__(self):
         return False
@@ -307,7 +314,7 @@ class RequestKwargFilters(object):
     '''
 
     @staticmethod
-    def from_json(request, kwargs, data):
+    def from_json(api, request, kwargs, data):
         if request.method in ('POST', 'PUT') and request.raw_post_data:
             if not isinstance(data, dict):
                 raise UserError("Missing or invalid json post data", status_code=400)
@@ -315,7 +322,7 @@ class RequestKwargFilters(object):
 
     @staticmethod
     def from_keys(keys):
-        def filter_func(request, kwargs, data):
+        def filter_func(api, request, kwargs, data):
             if not isinstance(data, dict):
                 raise UserError("Missing or invalid json post data", status_code=400)
             for key in keys:
@@ -325,15 +332,15 @@ class RequestKwargFilters(object):
         return filter_func
 
     @staticmethod
-    def from_get_params(request, kwargs, data):
+    def from_get_params(api, request, kwargs, data):
         if request.method != 'GET':
             return
-        for field in self.model_class._meta.fields:
+        for field in api._fields:
             if field.name in request.GET:
                 kwargs[field.name] = request.GET[field.name]
 
     @staticmethod
-    def with_data(request, kwargs, data):
+    def with_data(api, request, kwargs, data):
         if data == None:
             raise UserError("Missing or invalid json post data", status_code=400)
         kwargs['data'] = data
@@ -380,11 +387,14 @@ class ApiError(Exception):
         self.status_code = status_code
 
     def to_response(self):
-        return HttpResponse(json.dumps({'message': self.message}, status_code=self.status_code))
+        return HttpResponse(json.dumps({'message': self.message}, status=self.status_code))
 
 class UserError(ApiError):
     pass
 
 class UnauthenticatedError(UserError):
-    status_code = 403
+    def __init__(self, message, status_code=403):
+        super(UnauthenticatedError, self).__init__(message, status_code)
+
+
         

@@ -15,9 +15,10 @@ class ApiField(object):
 
         
 class DateTimeField(ApiField):
-    DATE_FORMAT = '%Y-%m-%d %H:%M%S'
+    DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
     def obj_to_dict(self, obj, data):
         val = getattr(obj, self.obj_attr_name)
+        # and not isinstance(val, basestring):
         if val != None:
             val = val.strftime(self.DATE_FORMAT)
         data[self.name] = val

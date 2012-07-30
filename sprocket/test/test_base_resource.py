@@ -10,6 +10,7 @@ from django.utils import simplejson
 
 from mocking_bird.mocking import MockingBirdMixin
 
+from ..auth import NoAuthentication
 from ..fields import DateTimeField, ApiField
 from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, RequestKwargFilters
 
@@ -30,7 +31,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
         new_label = 'ANewLabel'
         resource.update(obj.pk, label=new_label)
         obj3 = resource.get(pk=obj.pk)
-        self.assertEquals(label, obj3.label)
+        self.assertEquals(new_label, obj3.label)
 
     def test_http_crud(self):
         c = Client()
@@ -52,7 +53,6 @@ class SimpleCase(TestCase, MockingBirdMixin):
             content_type='application/json')
         self.assertEquals(200, r.status_code)
         data = simplejson.loads(r.content)
-
         r = c.get(
             '/api/simple-resource/%s' % data['pk'],
             content_type='application/json')
@@ -73,7 +73,6 @@ class SimpleCase(TestCase, MockingBirdMixin):
 
         r = c.get(
             '/api/simple-resource',
-            data=simplejson.dumps(),
             content_type='application/json')
         self.assertEquals(200, r.status_code)
         data = simplejson.loads(r.content)
@@ -92,12 +91,27 @@ class SimpleCase(TestCase, MockingBirdMixin):
         settings.ROOT_URLCONF = self.org_urls
 
 
-_storage = {}
-class SimpleResource(BaseApiResource):
-    class Meta:
-        resource_name = 'simple-resource'
 
-    def init_fields(self, fields):
+class SimpleObject(object):
+    pk = 0
+    label = ''
+    city = ''
+    published_at = datetime.utcnow()
+    nicknames = ()
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
+class SimpleResource(BaseApiResource):
+    _storage = {}
+
+    class Meta(ResourceMeta):
+        resource_name = 'simple-resource'
+        authentication = NoAuthentication()
+        model_class = SimpleObject
+
+    def on_init_fields(self, fields):
         for name in dir(SimpleObject):
             attr = getattr(SimpleObject, name)
             if name.startswith('_'):
@@ -114,10 +128,12 @@ class SimpleResource(BaseApiResource):
         endpoints = [
             EndPoint(
                 r"^(?P<resource_name>%s)$" % self._meta.resource_name,
+                #r".*",
                 GET='list',
                 POST='create',
                 kwargs_filters=[
-                    RequestKwargFilters.from_get_params
+                    RequestKwargFilters.from_get_params,
+                    RequestKwargFilters.from_json
                     ]
                 ),
             EndPoint(
@@ -125,22 +141,27 @@ class SimpleResource(BaseApiResource):
                 GET='get',
                 PUT='update',
                 kwargs_filters=[
-                    RequestKwargFilters.from_get_params
+                    RequestKwargFilters.from_get_params,
+                    RequestKwargFilters.from_json
                     ]
                 ),
             ]
         return endpoints
 
     def update(self, pk, **kwargs):
-        obj = SimpleObject(**kwargs)
-        _storage[pk] = obj
+        obj = self._storage[long(pk)]
+        for field in self._fields:
+            if field.name in kwargs:
+                field.dict_to_obj(kwargs, obj)
+        return obj
 
     def get(self, pk):
-        return _storage[pk]
+        o = self._storage[long(pk)]
+        return o
 
     def list(self, **kwargs):
         items = []
-        for item in _storage.values():
+        for item in self._storage.values():
             filter_out = False
             if kwargs:
                 for key, val in kwargs.items():
@@ -152,21 +173,19 @@ class SimpleResource(BaseApiResource):
         return items
 
     def create(self, **kwargs):
-        obj = SimpleObject(**kwargs)
+        obj = SimpleObject()
+        for field in self._fields:
+            if field.name in kwargs:
+                field.dict_to_obj(kwargs, obj)
         obj.pk = long(time.time() * 1000)
-        _storage[obj.pk] = obj
+        self._storage[obj.pk] = obj
+        return obj
 
-class SimpleObject(object):
-    pk = 0
-    label = ''
-    city = ''
-    published_at = datetime.utcnow()
-    nicknames = ()
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    def on_authenticate(self, request):
+        pass
 
 
+simple_resource = SimpleResource()
 urlpatterns = patterns('',
-    (r'/api/', include(SimpleResource().urls)),
+    (r'^api/', include(simple_resource.urls)),
 )
