@@ -25,6 +25,6 @@ class DateTimeField(ApiField):
 
     def dict_to_obj(self, data, obj):
         val = data.get(self.name)
-        if val != None:
+        if val != None and not isinstance(val, datetime):
             val = datetime.strptime(val, self.DATE_FORMAT)
         setattr(obj, self.obj_attr_name, val)

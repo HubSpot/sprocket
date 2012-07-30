@@ -10,6 +10,7 @@ from django.utils import simplejson
 
 from mocking_bird.mocking import MockingBirdMixin
 
+from ..mixins import BaseMixin
 from ..auth import NoAuthentication
 from ..fields import DateTimeField, ApiField
 from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, RequestKwargFilters
@@ -78,37 +79,74 @@ class SimpleCase(TestCase, MockingBirdMixin):
         data = simplejson.loads(r.content)
         self.assertEquals(1, len(data))
 
+    def test_mixins(self):
+        c = Client()
 
+        label = 'ATestLabel'
+
+        post_data = {
+            'label': label,
+            }
+
+        r = c.post(
+            '/api/simple-resource',
+            data=simplejson.dumps(post_data),
+            content_type='application/json')
+        data = simplejson.loads(r.content)
+
+
+        r = c.post(
+            '/api/simple-resource/%s/soft-delete' % data['pk'],
+            content_type='application/json')
+        self.assertEquals(200, r.status_code)
+
+        r = c.get(
+            '/api/simple-resource/%s' % data['pk'],
+            content_type='application/json')
+        self.assertEquals(200, r.status_code)
+        data = simplejson.loads(r.content)
+        # The created timestamp should not have the default 1900 value
+        self.assertTrue('1900' not in data['created'] and '201' in data['created'])
+        # Verify the soft-delete worked
+        self.assertTrue(data['deleted'] == True)
+        
 
     url_conf =  'sprocket.test.test_base_resource'
     def setUp(self):
         super(SimpleCase, self).setUp()
         self.org_urls = settings.ROOT_URLCONF
         settings.ROOT_URLCONF = self.url_conf
+        simple_resource._storage = {}
 
     def tearDown(self):
         super(SimpleCase, self).tearDown()
         settings.ROOT_URLCONF = self.org_urls
 
-
-
 class SimpleObject(object):
     pk = 0
     label = ''
     city = ''
+    created = datetime(1900, 1, 1)
+    updated = datetime(1900, 1, 1)
     published_at = datetime.utcnow()
     nicknames = ()
+    deleted = False
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+def getend():
+    e = EndPoint(
+        r'my-url',
+        GET('list', ArgFilters.from_get_params),
+        POST('create', ArgFilters.from_json))
+        
 
 class SimpleResource(BaseApiResource):
     _storage = {}
 
     class Meta(ResourceMeta):
         resource_name = 'simple-resource'
-        authentication = NoAuthentication()
         model_class = SimpleObject
 
     def on_init_fields(self, fields):
@@ -123,6 +161,8 @@ class SimpleResource(BaseApiResource):
             else:
                 cls = ApiField
             fields.append(cls(name))
+
+            
 
     def get_endpoints(self):
         endpoints = [
@@ -148,11 +188,15 @@ class SimpleResource(BaseApiResource):
             ]
         return endpoints
 
+    def get_mixins(self):
+        return [DeletedUpdatedMixin(self)]
+
     def update(self, pk, **kwargs):
         obj = self._storage[long(pk)]
         for field in self._fields:
             if field.name in kwargs:
                 field.dict_to_obj(kwargs, obj)
+        self.execute_handlers('updated', obj)
         return obj
 
     def get(self, pk):
@@ -178,11 +222,33 @@ class SimpleResource(BaseApiResource):
             if field.name in kwargs:
                 field.dict_to_obj(kwargs, obj)
         obj.pk = long(time.time() * 1000)
+        self.execute_handlers('created', obj)
         self._storage[obj.pk] = obj
         return obj
 
+    def delete(self, pk):
+        del self._storage[long(pk)]
+        self.execute_handlers('deleted', long(pk))
+
     def on_authenticate(self, request):
         pass
+
+
+
+class DeletedUpdatedMixin(BaseMixin):
+    def get_endpoints(self):
+        return [
+            EndPoint(
+                r"^(?P<resource_name>%s)/(?P<pk>[\d]+)/soft-delete$" % self.api._meta.resource_name,
+                POST='soft_delete')
+            ]
+
+    def on_created(self, obj):
+        obj.created = datetime.utcnow()
+
+    def soft_delete(self, pk):
+        self.api._storage[long(pk)].deleted = True
+        return True
 
 
 simple_resource = SimpleResource()

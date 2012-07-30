@@ -15,17 +15,13 @@ _current = threading.local()
 
 class ResourceMeta(object):
     resource_name = None
-    authentication = DefaultAuthentication()
     model_class = object
     included = []
     excluded = []
 
 
 class BaseApiResource(object):
-    _meta = ResourceMeta() # Both of these are overwritten by the __new__ method, but we keep them
-    _fields = ()   # them here so pylint can do better type inference
-    urls = ()
-    _event_handlers = None
+    _meta = ResourceMeta() # Overwritten by the __new__ method, but kept here so pylint can do type inference
 
     class Meta(ResourceMeta):
         resource_name = 'base-api-resource'
@@ -48,7 +44,7 @@ class BaseApiResource(object):
     def _merge_in_mixins(self):
         '''
         All the methods in mixins that do not being with 'on_' or '_' get mixed into the API
-        class - however we have to du some trickery so that when they are called 'self' is the
+        class - however we have to do some trickery so that when they are called 'self' is the
         'self' of the mixin, not of the API Resource.
         '''
         self.mixins = self.get_mixins() 
@@ -58,6 +54,8 @@ class BaseApiResource(object):
                 if not isinstance(attr_name, basestring):
                     continue
                 if attr_name.startswith('on_'):
+                    continue
+                if attr_name == 'get_endpoints':
                     continue
                 if attr_name.startswith('_'):
                     continue
@@ -81,9 +79,9 @@ class BaseApiResource(object):
         urls = []
         for endpoint in self._get_all_endpoints():
             urls.append(url(
-                    endpoint.url_pattern,
-                    self.wrap(endpoint), 
-                    name=endpoint.name))
+                endpoint.url_pattern,
+                self.wrap(endpoint), 
+                name=endpoint.name))
         return urls   
 
     def _get_all_endpoints(self):
@@ -180,6 +178,8 @@ class BaseApiResource(object):
             return HttpResponse(self.obj_to_str(result))
         elif result == None and self.current_request.method == 'GET':
             return HttpResponse('{"message": "Object not found"}', status=404)
+        elif result == True:
+            return HttpResponse('{"message": "Action succeeded"}', status=200)
         else:
             raise Exception("Response was of an unexpected type")
 
