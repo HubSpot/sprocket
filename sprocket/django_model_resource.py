@@ -36,6 +36,7 @@ class DjangoModelResource(BaseApiResource):
             cls = django_field_to_sprocket_field.get(field.__class__.__name__, ApiField)
             api_field = cls(field.name)
             fields.append(api_field)
+            
 
     def create(self, **kwargs):
         obj = self.dict_to_obj(kwargs)
@@ -64,6 +65,8 @@ class DjangoModelResource(BaseApiResource):
 
     def update(self, pk, **kwargs):
         obj = self.get(pk=pk)
+        if obj == None:
+            return self.handle_update_not_found(pk, **kwargs)
         previous_data = {}
         for name in kwargs.keys():
             previous_data[name] = getattr(obj, name, None)
@@ -86,10 +89,13 @@ class DjangoModelResource(BaseApiResource):
 
         return obj
         
+    def handle_update_not_found(self, pk, **kwargs):
+        raise UserError("Object not found for key %s" % pk, 404)
 
     def delete(self, pk):
         obj = self.get(pk=pk)
-
+        if not obj:
+            raise UserError("Object with key %s was not found, could not delete." % pk, 404)
         self.execute_handlers(ModelEvents.prepare_delete, obj)
         self.execute_handlers(ModelEvents.validate_delete, obj)
         self.execute_handlers(ModelEvents.process_delete, obj)
