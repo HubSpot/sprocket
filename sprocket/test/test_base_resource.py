@@ -215,7 +215,7 @@ class SimpleResource(BaseApiResource):
         if len(kwargs.get('nicknames', [])) > 5:
             raise UserError("Too many nicknames", 400)
         obj = self._storage[long(pk)]
-        for field in self._fields:
+        for field in self.fields:
             if field.name in kwargs:
                 field.dict_to_obj(kwargs, obj)
         self.execute_handlers('updated', obj)
@@ -240,7 +240,7 @@ class SimpleResource(BaseApiResource):
 
     def create(self, **kwargs):
         obj = SimpleObject()
-        for field in self._fields:
+        for field in self.fields:
             if field.name in kwargs:
                 field.dict_to_obj(kwargs, obj)
         obj.pk = long(time.time() * 1000)

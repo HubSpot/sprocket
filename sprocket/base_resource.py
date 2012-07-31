@@ -35,10 +35,10 @@ class BaseApiResource(object):
     def __init__(self, *args, **kwargs):
         self._event_handlers = {}
         self._merge_in_mixins()
-        self._fields = self._init_fields()
+        self.fields = self._init_fields()
+        self.field_names = [field.name for field in self.fields]
+        self.field_by_name = dict([(field.name, field) for field in self.fields])
         self.urls = self._build_urls()
-
- 
 
     # Initialize endpoints and mixins
     def _merge_in_mixins(self):
@@ -241,7 +241,7 @@ class BaseApiResource(object):
         included = self._meta.included
         excluded = self._meta.excluded
         data = {}
-        for field in self._fields:
+        for field in self.fields:
             if field.name in excluded:
                 continue
             if included and field.name not in included:
@@ -260,19 +260,21 @@ class BaseApiResource(object):
         except ValueError, e:
             raise UserError(e.message, status_code=400)
 
-    def dict_to_obj(self, data):
+    def dict_to_obj(self, data, obj=None):
         included = self._meta.included
         excluded = self._meta.excluded
-        data = {}
-        obj = self._meta.model_class()
-        for field in self._fields:
+        if obj == None:
+            obj = self._meta.model_class()
+        for field in self.fields:
             if field.name in excluded:
                 continue
             if included and field.name not in included:
                 continue
+            if field.name not in data:
+                continue
             field.dict_to_obj(data, obj)
         self.execute_handlers(BaseEvents.dict_to_obj, data, obj)
-        return data
+        return obj
         
 
     def obj_list_to_str(self, objects):
@@ -338,7 +340,7 @@ class ArgFilters(object):
     def fields_from_json(api, request, kwargs):
         if request.method in ('POST', 'PUT'):
             data = ArgFilters.get_json_data(request)
-            for field in api._fields:
+            for field in api.fields:
                 if field.name in data:
                     kwargs[field.name] = data[field.name]
 
@@ -366,7 +368,7 @@ class ArgFilters(object):
 
     @staticmethod
     def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit')):
-        field_names = set([field.name for field in api._fields])
+        field_names = set([field.name for field in api.fields])
         for name, value in request.GET.items():
             if name in field_names or name in additional_keys:
                 kwargs[name] = value

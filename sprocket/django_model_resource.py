@@ -38,10 +38,7 @@ class DjangoModelResource(BaseApiResource):
             fields.append(api_field)
 
     def create(self, **kwargs):
-        obj = self._meta.model_class()
-        for field in self._fields:
-            if field.name in kwargs:
-                field.dict_to_obj(kwargs, obj)
+        obj = self.dict_to_obj(kwargs)
         return self.create_object(obj)
 
     def create_object(self, obj):
@@ -70,10 +67,7 @@ class DjangoModelResource(BaseApiResource):
         previous_data = {}
         for name in kwargs.keys():
             previous_data[name] = getattr(obj, name, None)
-
-        for field in self._fields:
-            if field.name in kwargs:
-                field.dict_to_obj(kwargs, obj)
+        obj = self.dict_to_obj(kwargs, obj)
         
         self.execute_handlers(ModelEvents.prepare_save, obj)
         self.execute_handlers(ModelEvents.prepare_update, obj, previous_data)
