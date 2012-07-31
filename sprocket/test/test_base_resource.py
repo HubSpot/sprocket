@@ -13,7 +13,7 @@ from mocking_bird.mocking import MockingBirdMixin
 from ..mixins import BaseMixin
 from ..auth import NoAuthentication
 from ..fields import DateTimeField, ApiField
-from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, RequestKwargFilters
+from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, ArgFilters, POST, PUT, GET, UserError
 
 
 class SimpleCase(TestCase, MockingBirdMixin):
@@ -54,6 +54,10 @@ class SimpleCase(TestCase, MockingBirdMixin):
             content_type='application/json')
         self.assertEquals(200, r.status_code)
         data = simplejson.loads(r.content)
+        self.assertTrue(data['pk'] > 10000)
+        self.assertEquals(r['x-sprocket-new-object-id'], str(data['pk']))
+
+
         r = c.get(
             '/api/simple-resource/%s' % data['pk'],
             content_type='application/json')
@@ -94,7 +98,6 @@ class SimpleCase(TestCase, MockingBirdMixin):
             content_type='application/json')
         data = simplejson.loads(r.content)
 
-
         r = c.post(
             '/api/simple-resource/%s/soft-delete' % data['pk'],
             content_type='application/json')
@@ -109,6 +112,38 @@ class SimpleCase(TestCase, MockingBirdMixin):
         self.assertTrue('1900' not in data['created'] and '201' in data['created'])
         # Verify the soft-delete worked
         self.assertTrue(data['deleted'] == True)
+
+    def test_error_handling(self):
+        c = Client()
+
+        label = 'ATestLabel'
+
+        post_data = {
+            'label': label,
+            }
+        r = c.post(
+            '/api/simple-resource',
+            data=simplejson.dumps(post_data),
+            content_type='application/json')
+        data = simplejson.loads(r.content)
+        self.assertEquals(200, r.status_code)
+
+
+        r = c.put(
+            '/api/simple-resource/%s' % data['pk'],
+            data=simplejson.dumps({'nicknames': ['a', 'b', 'c', 'd', 'e', 'f']}),
+            content_type='application/json')
+        data = simplejson.loads(r.content)
+        self.assertEquals(400, r.status_code)
+        
+
+        # Illegal method
+        r = c.delete(
+            '/api/simple-resource',
+            content_type='application/json')
+        self.assertEquals(405, r.status_code)
+        
+        
         
 
     url_conf =  'sprocket.test.test_base_resource'
@@ -134,13 +169,6 @@ class SimpleObject(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-
-def getend():
-    e = EndPoint(
-        r'my-url',
-        GET('list', ArgFilters.from_get_params),
-        POST('create', ArgFilters.from_json))
-        
 
 class SimpleResource(BaseApiResource):
     _storage = {}
@@ -168,22 +196,13 @@ class SimpleResource(BaseApiResource):
         endpoints = [
             EndPoint(
                 r"^(?P<resource_name>%s)$" % self._meta.resource_name,
-                #r".*",
-                GET='list',
-                POST='create',
-                kwargs_filters=[
-                    RequestKwargFilters.from_get_params,
-                    RequestKwargFilters.from_json
-                    ]
+                GET('list', ArgFilters.fields_from_query),
+                POST('create', ArgFilters.fields_from_json)
                 ),
             EndPoint(
                 r"^(?P<resource_name>%s)/(?P<pk>[\d]+)$" % self._meta.resource_name,
-                GET='get',
-                PUT='update',
-                kwargs_filters=[
-                    RequestKwargFilters.from_get_params,
-                    RequestKwargFilters.from_json
-                    ]
+                GET('get', ArgFilters.fields_from_query),
+                PUT('update', ArgFilters.fields_from_json)
                 ),
             ]
         return endpoints
@@ -192,6 +211,8 @@ class SimpleResource(BaseApiResource):
         return [DeletedUpdatedMixin(self)]
 
     def update(self, pk, **kwargs):
+        if len(kwargs.get('nicknames', [])) > 5:
+            raise UserError("Too many nicknames", 400)
         obj = self._storage[long(pk)]
         for field in self._fields:
             if field.name in kwargs:
@@ -224,6 +245,7 @@ class SimpleResource(BaseApiResource):
         obj.pk = long(time.time() * 1000)
         self.execute_handlers('created', obj)
         self._storage[obj.pk] = obj
+        self.set_response_header('x-sprocket-new-object-id', str(obj.pk))
         return obj
 
     def delete(self, pk):
@@ -240,7 +262,7 @@ class DeletedUpdatedMixin(BaseMixin):
         return [
             EndPoint(
                 r"^(?P<resource_name>%s)/(?P<pk>[\d]+)/soft-delete$" % self.api._meta.resource_name,
-                POST='soft_delete')
+                POST('soft_delete'))
             ]
 
     def on_created(self, obj):

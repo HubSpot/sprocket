@@ -3,7 +3,7 @@ import threading
 import traceback
 
 from django.conf.urls.defaults import *
-from django.http import HttpResponse, HttpRequest
+from django.http import HttpResponse, HttpRequest, HttpResponseNotAllowed
 from django.utils import simplejson as json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -110,6 +110,8 @@ class BaseApiResource(object):
         def handler(request, **kwargs):
             try:
                 _current.request = request
+                _current.response_headers = {}
+                _current.response_cookie_setters = {}
                 request.endpoint = endpoint
                 return self._dispatch(endpoint, request, kwargs)
             except UserError, ex:
@@ -129,39 +131,36 @@ class BaseApiResource(object):
                     ))
             finally:
                 _current.request = None
+                _current.response_headers = None
+                _current.response_cookie_setters = None
         return handler
 
     def _dispatch(self, endpoint, request, kwargs):
         self._authenticate(request)
-        if not request.method in endpoint.http_method_to_api_method:
-            return HttpResponse(status=405)
-        method = getattr(self, endpoint.http_method_to_api_method.get(request.method))
-        self._adjust_kwargs(endpoint, request, kwargs)
+        if not request.method in endpoint.http_method_dict:
+            return HttpResponseNotAllowed(endpoint.http_method_dict.keys())
+        method_endpoint = request.method_endpoint = endpoint.http_method_dict[request.method]
+        method = getattr(self, method_endpoint.api_method_name)
+        self._adjust_kwargs(method_endpoint, request, kwargs)
         result = method(**kwargs)
         response = self._result_to_response(result)
+        self.add_preset_response_info(response)
         self.execute_handlers(BaseEvents.process_response, response)
         return response
 
     def _authenticate(self, request):
         self.execute_handlers(BaseEvents.authenticate, request)
 
-    def _adjust_kwargs(self, endpoint, request, kwargs):
+    def _adjust_kwargs(self, method_endpoint, request, kwargs):
         if 'resource_name' in kwargs:
             del kwargs['resource_name']
-        data = None
-        if request.raw_post_data:
-            try:
-                data = json.loads(request.raw_post_data)
-            except Exception:
-                raise UserError("Invalid syntax for the json data", status_code=400)
+        self.execute_handlers(BaseEvents.adjust_kwargs_for_request, request, kwargs)
 
-        self.execute_handlers(BaseEvents.adjust_kwargs_for_request, request, kwargs, data)
-
-        for filter in endpoint.kwargs_filters:
-            filter(self, request, kwargs, data)
+        for filter in method_endpoint.arg_filters:
+            filter(self, request, kwargs)
 
     def _result_to_response(self, result):
-        response = self.current_request.endpoint.to_response_func(result)
+        response = self.current_request.method_endpoint.to_response_func(result)
         if response:
             return response
         if isinstance(result, HttpResponse):
@@ -182,6 +181,15 @@ class BaseApiResource(object):
             return HttpResponse('{"message": "Action succeeded"}', status=200)
         else:
             raise Exception("Response was of an unexpected type")
+
+    def add_preset_response_info(self, response):
+        '''
+        Adds any headers or cookies that were set during the processing of the api call
+        '''
+        for key, val in _current.response_headers.items():
+            response[key] = val
+        for args, kwargs in _current.response_cookie_setters:
+            response.set_cookie(*args, **kwargs)
 
     def handle_user_error(self, request, endpoint, exc, response):
         ''' Override this to add any custom error reporting logic '''
@@ -297,6 +305,13 @@ class BaseApiResource(object):
         else:
             return user.username
 
+    def set_response_header(self, name, value):
+        _current.response_headers = {name: value}
+
+    def set_response_cookie(self, *args, **kwargs):
+        _current.response_cookie_setters.append((args, kwargs))
+
+
     # Default event handlers, to be overridden in subclasses
     def on_authenticate(self, request):
         if not request.user.is_authenticated():
@@ -307,24 +322,30 @@ class EmptyRequest(HttpRequest):
         return False
 
 
-class RequestKwargFilters(object):
+class ArgFilters(object):
     '''
     Filters that take the incoming request data and generate 
     the appropriate keyword arguments that will be passed to the api method
     '''
 
     @staticmethod
-    def from_json(api, request, kwargs, data):
-        if request.method in ('POST', 'PUT') and request.raw_post_data:
-            if not isinstance(data, dict):
-                raise UserError("Missing or invalid json post data", status_code=400)
+    def all_from_json(api, request, kwargs):
+        if request.method in ('POST', 'PUT'):
+            data = ArgFilters.get_json_data(request)
             kwargs.update(data)
 
     @staticmethod
+    def fields_from_json(api, request, kwargs):
+        if request.method in ('POST', 'PUT'):
+            data = ArgFilters.get_json_data(request)
+            for field in api._fields:
+                if field.name in data:
+                    kwargs[field.name] = data[field.name]
+
+    @staticmethod
     def from_keys(keys):
-        def filter_func(api, request, kwargs, data):
-            if not isinstance(data, dict):
-                raise UserError("Missing or invalid json post data", status_code=400)
+        def filter_func(api, request, kwargs):
+            data = ArgFilters.get_json_data(request)
             for key in keys:
                 if key not in data:
                     raise UserError("Expected key %s in the posted json data" % key)
@@ -332,43 +353,97 @@ class RequestKwargFilters(object):
         return filter_func
 
     @staticmethod
-    def from_get_params(api, request, kwargs, data):
-        if request.method != 'GET':
-            return
-        for field in api._fields:
-            if field.name in request.GET:
-                kwargs[field.name] = request.GET[field.name]
+    def keys_from_query(keys, all_required=True):
+        def filter_func(api, request, kwargs):
+            for key in keys:
+                if key not in request.GET:
+                    if all_required:
+                        raise UserError("Expected key %s in the posted json data" % key)
+                else:
+                    kwargs[key] = request.GET[key]
+        return filter_func
+
 
     @staticmethod
-    def with_data(api, request, kwargs, data):
-        if data == None:
-            raise UserError("Missing or invalid json post data", status_code=400)
+    def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit')):
+        field_names = set([field.name for field in api._fields])
+        for name, value in request.GET.items():
+            if name in field_names or name in additional_keys:
+                kwargs[name] = value
+                continue
+            # We also allow queries in the form 'field_name__gt', 'field_name__lt' that get passed into filters
+            i = name.find('__')
+            if i > -1:
+                if name[:i] in field_names:
+                    kwargs[name] = value
+
+    _internal_query_keys = ['portalId', 'hapikey', 'scopes']                    
+    @staticmethod
+    def all_from_query(api, request, kwargs):
+        for name, value in request.GET.items():
+            if name not in ArgFilters._internal_query_keys:
+                kwargs[name] = value
+        
+
+    @staticmethod
+    def with_data(api, request, kwargs):
+        try:
+            data = json.loads(request.raw_post_data)
+        except Exception:
+            raise UserError("Invalid syntax for the json data", status_code=400)
         kwargs['data'] = data
 
+    @staticmethod
+    def get_json_data(request):
+        try:
+            data = json.loads(request.raw_post_data)
+        except Exception:
+            raise UserError("Invalid syntax for the json data", status_code=400)
+        return data
+        
 
 class EndPoint(object):
     def __init__(
         self, 
         url_pattern, 
-        GET=None,
-        DELETE=None,
-        POST=None,
-        PUT=None,
-        name='',
-        kwargs_filters=(),
-        to_response_func=None):
+        *end_point_methods,
+        **kwargs):
         self.url_pattern = url_pattern
-        self.http_method_to_api_method = {
-            'GET': GET,
-            'DELETE': DELETE,
-            'POST': POST,
-            'PUT': PUT
-            }
-        self.kwargs_filters = kwargs_filters
-        self.name = name
+        self.http_method_dict = {}
+        for epm in end_point_methods:
+            self.http_method_dict[epm.__class__.__name__.upper()] = epm
+        self.name = kwargs.get('name', '')
+
+class EndPointMethod(object):
+    '''
+    Defines the endpoint handler for a particular HTTP Method
+    '''
+    def __init__(self, api_method_name, arg_filters=(), to_response_func=None):
+        '''
+        @api_method_name - a name a method that exists on the API resource that will be the handler for this endpoint
+        @arg_filters - a list of filter functions that will pull keys and values of the request and include them as kwargs
+        @to_response_func - optional if included will turn the result of the api_method into an HttpResponse object
+        '''
+        if callable(arg_filters):
+            arg_filters = [arg_filters]
+        if to_response_func == None:
+            to_response_func = lambda o:None
+
+        self.api_method_name = api_method_name
         self.to_response_func = to_response_func
-        if self.to_response_func == None:
-            self.to_response_func = lambda o: None
+        self.arg_filters = arg_filters
+
+class PUT(EndPointMethod):
+    pass
+
+class POST(EndPointMethod):
+    pass
+
+class GET(EndPointMethod):
+    pass
+
+class DELETE(EndPointMethod):
+    pass
 
 class BaseEvents(object):
     __metaclass__ = magic_enum_meta_cls
@@ -387,7 +462,7 @@ class ApiError(Exception):
         self.status_code = status_code
 
     def to_response(self):
-        return HttpResponse(json.dumps({'message': self.message}, status=self.status_code))
+        return HttpResponse(json.dumps({'message': self.message}), status=self.status_code)
 
 class UserError(ApiError):
     pass
