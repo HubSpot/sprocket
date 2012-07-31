@@ -145,12 +145,16 @@ class FakeModel(Model):
 
     class Meta:
         db_table = 'sprocket_test_fake_model'
+        
 
 class MyModelResource(DjangoModelResource):
 
     class Meta(ResourceMeta):
         resource_name = 'my-resource'
         model_class = FakeModel
+        filtering = {
+            'email': ['exact']
+            }
 
     def on_authenticate(self, request):
         pass

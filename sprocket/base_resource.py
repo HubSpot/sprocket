@@ -11,14 +11,21 @@ from .utils import MagicEnum, Val, magic_enum_meta_cls
 from .auth import DefaultAuthentication
 from .fields import ApiField
 
-_current = threading.local()
 
 class ResourceMeta(object):
     resource_name = None
     model_class = object
     included = []
     excluded = []
+    filtering = None
 
+    def __init__(self):
+        if not self.filtering:
+            self.filtering = {}
+        if not 'id' in self.filtering:
+            self.filtering['id'] = ['exact']
+        if not 'pk' in self.filtering:
+            self.filtering['pk'] = ['exact']
 
 class BaseApiResource(object):
     _meta = ResourceMeta() # Overwritten by the __new__ method, but kept here so pylint can do type inference
@@ -109,9 +116,7 @@ class BaseApiResource(object):
         @csrf_exempt
         def handler(request, **kwargs):
             try:
-                _current.request = request
-                _current.response_headers = {}
-                _current.response_cookie_setters = {}
+                _thread_local.current = CurrentRequestThreadHolder(request)
                 request.endpoint = endpoint
                 return self._dispatch(endpoint, request, kwargs)
             except UserError, ex:
@@ -130,9 +135,7 @@ class BaseApiResource(object):
                         status=500
                     ))
             finally:
-                _current.request = None
-                _current.response_headers = None
-                _current.response_cookie_setters = None
+                _thread_local.current = None
         return handler
 
     def _dispatch(self, endpoint, request, kwargs):
@@ -165,20 +168,23 @@ class BaseApiResource(object):
             return response
         if isinstance(result, HttpResponse):
             return result
-        elif isinstance(result, basestring):
-            return HttpResponse(result)
+        status_code = 200
+        if self.current_response_status_code != None:
+            status_code = self.current_response_status_code
+        if isinstance(result, basestring):
+            return HttpResponse(result, status=status_code)
         elif isinstance(result, dict):
-            return HttpResponse(json.dumps(result))
+            return HttpResponse(json.dumps(result), status=status_code)
         elif isinstance(result, list) and len(result) > 0 and isinstance(result[0], self._meta.model_class):
-            return HttpResponse(self.obj_list_to_str(result))
+            return HttpResponse(self.obj_list_to_str(result), status=status_code)
         elif isinstance(result, list):
-            return HttpResponse(json.dumps(result))
+            return HttpResponse(json.dumps(result), status=status_code)
         elif isinstance(result, self._meta.model_class):
-            return HttpResponse(self.obj_to_str(result))
+            return HttpResponse(self.obj_to_str(result), status=status_code)
         elif result == None and self.current_request.method == 'GET':
             return HttpResponse('{"message": "Object not found"}', status=404)
         elif result == True:
-            return HttpResponse('{"message": "Action succeeded"}', status=200)
+            return HttpResponse('{"message": "Action succeeded"}', status=status_code)
         else:
             raise Exception("Response was of an unexpected type")
 
@@ -186,10 +192,12 @@ class BaseApiResource(object):
         '''
         Adds any headers or cookies that were set during the processing of the api call
         '''
-        for key, val in _current.response_headers.items():
+        for key, val in _thread_local.current.response_headers.items():
             response[key] = val
-        for args, kwargs in _current.response_cookie_setters:
+        for args, kwargs in _thread_local.current.cookie_setters:
             response.set_cookie(*args, **kwargs)
+        if not response['Content-type']:
+            response['Content-type'] = 'application/json'
 
     def handle_user_error(self, request, endpoint, exc, response):
         ''' Override this to add any custom error reporting logic '''
@@ -290,7 +298,7 @@ class BaseApiResource(object):
 
     @property
     def current_request(self):
-        req = _current.request
+        req = _thread_local.current.request
         if not req:
             req = EmptyRequest()
         return req
@@ -307,12 +315,18 @@ class BaseApiResource(object):
         else:
             return user.username
 
+    @property
+    def current_response_status_code(self):
+        return _thread_local.current.status_code
+
+    def set_current_status_code(self, status_code):
+        _thread_local.current.status_code = status_code
+
     def set_response_header(self, name, value):
-        _current.response_headers = {name: value}
+        _thread_local.current.response_headers[name] = value
 
     def set_response_cookie(self, *args, **kwargs):
-        _current.response_cookie_setters.append((args, kwargs))
-
+        _thread_local.current.cookie_setters.append((args, kwargs))
 
     # Default event handlers, to be overridden in subclasses
     def on_authenticate(self, request):
@@ -475,3 +489,12 @@ class UnauthenticatedError(UserError):
 
 
         
+class CurrentRequestThreadHolder(object):
+    def __init__(self, request):
+        self.request = request
+        self.response_headers = {}
+        self.cookie_setters = []
+        self.status_code = None
+_thread_local = threading.local()
+_thread_local.current = CurrentRequestThreadHolder(None)
+    

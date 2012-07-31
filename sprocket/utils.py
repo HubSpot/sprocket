@@ -1,4 +1,8 @@
 
+class Val(object):
+    pass
+
+
 def magic_enum_meta_cls(typ, *args, **kwargs):
     attrs = {}
     for key, value in args[1].items():
@@ -10,17 +14,5 @@ def magic_enum_meta_cls(typ, *args, **kwargs):
 
 
 class MagicEnum(object):
+    __metaclass__ = magic_enum_meta_cls
 
-    def __new__(typ, *args, **kwargs):
-        obj = object.__new__(typ, *args, **kwargs)
-        obj.values = []
-        import pdb; pdb.set_trace()
-        for attr_name in dir(obj.__class__):
-            val = getattr(obj.__class__, attr_name)
-            if isinstance(val, Val):
-                setattr(obj, attr_name, attr_name)
-                obj.values.append(attr_name)
-        return obj
-
-class Val(object):
-    pass
