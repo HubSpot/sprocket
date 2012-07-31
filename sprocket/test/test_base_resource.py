@@ -13,7 +13,7 @@ from mocking_bird.mocking import MockingBirdMixin
 from ..mixins import BaseMixin
 from ..auth import NoAuthentication
 from ..fields import DateTimeField, ApiField
-from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, ArgFilters, POST, PUT, GET, UserError
+from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, ArgFilters, POST, PUT, GET, UserError, UnauthenticatedError
 
 
 class SimpleCase(TestCase, MockingBirdMixin):
@@ -125,7 +125,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
             '/api/simple-resource',
             data=simplejson.dumps(post_data),
             content_type='application/json')
-        data = simplejson.loads(r.content)
+        data = obj_data = simplejson.loads(r.content)
         self.assertEquals(200, r.status_code)
 
 
@@ -143,7 +143,8 @@ class SimpleCase(TestCase, MockingBirdMixin):
             content_type='application/json')
         self.assertEquals(405, r.status_code)
         
-        
+        r = c.get('/api/simple-resource/%s?denyMe=true' % obj_data['pk'])
+        self.assertEquals(403, r.status_code)        
         
 
     url_conf =  'sprocket.test.test_base_resource'
@@ -253,7 +254,9 @@ class SimpleResource(BaseApiResource):
         self.execute_handlers('deleted', long(pk))
 
     def on_authenticate(self, request):
-        pass
+        if request.GET.get('denyMe') == 'true':
+            raise UnauthenticatedError("denyMe was true")
+        
 
 
 
