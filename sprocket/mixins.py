@@ -18,7 +18,6 @@ class BaseMixin(object):
 
     def get_handler_for_event(self, event_name):
         return self.event_handler_by_event_name.get(event_name, None)
-                
-    def mixin_urls(self):
-        return []
 
+    def get_endpoints(self):
+        return []

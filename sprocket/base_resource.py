@@ -15,8 +15,8 @@ from .fields import ApiField
 class ResourceMeta(object):
     resource_name = None
     model_class = object
-    included = []
-    excluded = []
+    includes = []
+    excludes = []
     filtering = None
 
     def __init__(self):
@@ -143,7 +143,10 @@ class BaseApiResource(object):
         if not request.method in endpoint.http_method_dict:
             return HttpResponseNotAllowed(endpoint.http_method_dict.keys())
         method_endpoint = request.method_endpoint = endpoint.http_method_dict[request.method]
-        method = getattr(self, method_endpoint.api_method_name)
+        if isinstance(method_endpoint.api_method_name, basestring):
+            method = getattr(self, method_endpoint.api_method_name)
+        else:
+            method = method_endpoint.api_method_name
         self._adjust_kwargs(method_endpoint, request, kwargs)
         result = method(**kwargs)
         response = self._result_to_response(result)
@@ -157,6 +160,9 @@ class BaseApiResource(object):
     def _adjust_kwargs(self, method_endpoint, request, kwargs):
         if 'resource_name' in kwargs:
             del kwargs['resource_name']
+        if 'api_name' in kwargs:
+            del kwargs['api_name']
+
         self.execute_handlers(BaseEvents.adjust_kwargs_for_request, request, kwargs)
 
         for filter in method_endpoint.arg_filters:
@@ -246,13 +252,13 @@ class BaseApiResource(object):
         return json.dumps(data)
     
     def obj_to_dict(self, obj):
-        included = self._meta.included
-        excluded = self._meta.excluded
+        includes = self._meta.includes
+        excludes = self._meta.excludes
         data = {}
         for field in self.fields:
-            if field.name in excluded:
+            if field.name in excludes:
                 continue
-            if included and field.name not in included:
+            if includes and field.name not in includes:
                 continue
             field.obj_to_dict(obj, data)
         self.execute_handlers(BaseEvents.obj_to_dict, obj, data)
@@ -269,16 +275,14 @@ class BaseApiResource(object):
             raise UserError(e.message, status_code=400)
 
     def dict_to_obj(self, data, obj=None):
-        included = self._meta.included
-        excluded = self._meta.excluded
+        includes = self._meta.includes
+        excludes = self._meta.excludes
         if obj == None:
             obj = self._meta.model_class()
         for field in self.fields:
-            if field.name in excluded:
+            if field.name in excludes:
                 continue
-            if included and field.name not in included:
-                continue
-            if field.name not in data:
+            if includes and field.name not in includes:
                 continue
             field.dict_to_obj(data, obj)
         self.execute_handlers(BaseEvents.dict_to_obj, data, obj)
@@ -298,7 +302,7 @@ class BaseApiResource(object):
 
     @property
     def current_request(self):
-        req = _thread_local.current.request
+        req = self.thread_current.request
         if not req:
             req = EmptyRequest()
         return req
@@ -317,16 +321,23 @@ class BaseApiResource(object):
 
     @property
     def current_response_status_code(self):
-        return _thread_local.current.status_code
+        return self.thread_current.status_code
 
     def set_current_status_code(self, status_code):
-        _thread_local.current.status_code = status_code
+        self.thread_current.status_code = status_code
 
     def set_response_header(self, name, value):
-        _thread_local.current.response_headers[name] = value
+        self.thread_current.response_headers[name] = value
 
     def set_response_cookie(self, *args, **kwargs):
-        _thread_local.current.cookie_setters.append((args, kwargs))
+        self.thread_current.cookie_setters.append((args, kwargs))
+
+    @property        
+    def thread_current(self):
+        c = getattr(_thread_local, 'current', None)
+        if c == None:
+            c = CurrentRequestThreadHolder(None)
+        return c
 
     # Default event handlers, to be overridden in subclasses
     def on_authenticate(self, request):
@@ -381,7 +392,7 @@ class ArgFilters(object):
 
 
     @staticmethod
-    def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit')):
+    def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit', 'order_by')):
         field_names = set([field.name for field in api.fields])
         for name, value in request.GET.items():
             if name in field_names or name in additional_keys:
@@ -495,6 +506,7 @@ class CurrentRequestThreadHolder(object):
         self.response_headers = {}
         self.cookie_setters = []
         self.status_code = None
+
 _thread_local = threading.local()
 _thread_local.current = CurrentRequestThreadHolder(None)
     

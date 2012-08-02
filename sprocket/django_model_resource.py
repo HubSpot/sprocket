@@ -1,12 +1,19 @@
 
 from .base_resource import EndPoint, ApiField, BaseEvents, UserError, ArgFilters, ResourceMeta, GET, PUT, DELETE, POST, BaseApiResource
 from .utils import Val, magic_enum_meta_cls
-from .fields import DateTimeField, ApiField
-from django.db.models import Model, CharField, DateTimeField as DjDateTimeField, EmailField, IntegerField
+from .fields import DateTimeField, ApiField, SimpleForeignKeyField, CharField, IntegerField, TextField
+from django.db import models
+from django.db.models import Model
 
 
 django_field_to_sprocket_field = {
-    DjDateTimeField.__name__: DateTimeField
+    models.DateTimeField.__name__: DateTimeField,
+    models.ForeignKey.__name__: SimpleForeignKeyField,
+    models.CharField.__name__: CharField,
+    models.TextField.__name__: TextField,
+    models.IntegerField.__name__: IntegerField,
+    models.BigIntegerField.__name__: IntegerField,
+    models.PositiveIntegerField.__name__: IntegerField,
 }
 
 class DjangoModelResource(BaseApiResource):
@@ -139,7 +146,7 @@ class DjangoModelResource(BaseApiResource):
         return items
 
 
-def build_django_orm_filters_from_params(api_resource, params=None):
+def build_django_orm_filters_from_params(api_resource, params):
     '''
     Takes filters that came in from a query string and turns them into 
     django ORM filters
@@ -167,8 +174,8 @@ def build_django_orm_filters_from_params(api_resource, params=None):
         # Hack to fix filtering of foreign keys, which need to be filtered 
         # on the field without the _id part addded
         if isinstance(api_resource.field_by_name.get(field_name), SimpleForeignKeyField):
-            if field_name.endswith('_id') and filter_exact:
-                filter_key = field_name[:-1] + '__exact'
+            if field_name.endswith('_id') and filter_type == 'exact':
+                filter_key = field_name[:-3] + '__exact'
 
         dj_filters[filter_key] = value
 
@@ -180,17 +187,6 @@ def validate_filter(api, field_name, filter_type):
     if not filter_type in api._meta.filtering.get(field_name, []):
         raise UserError('You cannot filter on the field %s in the form of %s ' % (field_name, filter_type), 400)
 
-
-
-class SimpleForeignKeyField(ApiField):
-    def dict_to_obj(self, data, obj):
-        if 'name' in data:
-            val = data.get(self.name)
-            setattr(obj, self.obj_attr_name, val)
-
-    def obj_to_dict(self, obj, data):
-        val = getattr(obj, self.obj_attr_name + '_id')
-        data[self.name + '_id'] = val
 
 
 class ModelEvents(object):
