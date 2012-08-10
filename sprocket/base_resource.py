@@ -495,11 +495,12 @@ class ApiError(Exception):
         self.errors = errors
 
     def get_data(self):
-        d = {'message': self.message}
+        d = {'message': self.message, 'succeeded': False}
         if self.error_dict != None:
             d['error_dict'] = self.error_dict
         if self.errors != None:
             d['errors'] = self.errors
+            
         if self.extra_data != None:
             d.update(self.extra_data)
         return d
