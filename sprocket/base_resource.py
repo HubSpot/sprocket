@@ -122,10 +122,8 @@ class BaseApiResource(object):
             except UserError, ex:
                 return self.handle_user_error(request, endpoint, ex, ex.to_response())
             except ApiError, ex:
-                traceback.print_exc()
                 return self.handle_server_error(request, endpoint, ex, ex.to_response())
             except Exception, ex:
-                traceback.print_exc()
                 return self.handle_server_error(
                     request, 
                     endpoint, 
@@ -202,7 +200,7 @@ class BaseApiResource(object):
             response[key] = val
         for args, kwargs in _thread_local.current.cookie_setters:
             response.set_cookie(*args, **kwargs)
-        if not response['Content-type']:
+        if 'content-type' not in _thread_local.current.response_headers:
             response['Content-type'] = 'application/json'
 
     def handle_user_error(self, request, endpoint, exc, response):
@@ -211,6 +209,7 @@ class BaseApiResource(object):
 
     def handle_server_error(self, request, endpoint, exc, response):
         ''' Override this to add any custom error reporting logic '''
+        traceback.print_exc()
         return response
 
     def execute_handlers(self, event_name, *args):
@@ -327,7 +326,7 @@ class BaseApiResource(object):
         self.thread_current.status_code = status_code
 
     def set_response_header(self, name, value):
-        self.thread_current.response_headers[name] = value
+        self.thread_current.response_headers[name.lower()] = value
 
     def set_response_cookie(self, *args, **kwargs):
         self.thread_current.cookie_setters.append((args, kwargs))
@@ -371,13 +370,17 @@ class ArgFilters(object):
 
     @staticmethod
     def from_keys(keys):
+        if not hasattr(keys, '__iter__'):
+            keys = [keys]
         def filter_func(api, request, kwargs):
             data = ArgFilters.get_json_data(request)
             for key in keys:
                 if key not in data:
-                    raise UserError("Expected key %s in the posted json data" % key)
+                    raise UserError("Expected key %s in the posted json data" % key, 400)
                 kwargs[key] = data[key]
         return filter_func
+
+
 
     @staticmethod
     def keys_from_query(keys, all_required=True):
@@ -389,6 +392,7 @@ class ArgFilters(object):
                 else:
                     kwargs[key] = request.GET[key]
         return filter_func
+
 
 
     @staticmethod
@@ -411,7 +415,6 @@ class ArgFilters(object):
             if name not in ArgFilters._internal_query_keys:
                 kwargs[name] = value
         
-
     @staticmethod
     def with_data(api, request, kwargs):
         try:
@@ -483,13 +486,27 @@ class BaseEvents(object):
     init_fields = Val()
 
 class ApiError(Exception):
-    def __init__(self, message, status_code):
+    def __init__(self, message, status_code, error_dict=None, errors=(), extra_data=None):
         super(ApiError, self).__init__(message)
         self.message = message
         self.status_code = status_code
+        self.error_dict = error_dict
+        self.extra_data = extra_data
+        self.errors = errors
+
+    def get_data(self):
+        d = {'message': self.message}
+        if self.error_dict != None:
+            d['error_dict'] = self.error_dict
+        if self.errors != None:
+            d['errors'] = self.errors
+        if self.extra_data != None:
+            d.update(self.extra_data)
+        return d
 
     def to_response(self):
-        return HttpResponse(json.dumps({'message': self.message}), status=self.status_code)
+        return HttpResponse(json.dumps(self.get_data()), status=self.status_code)
+
 
 class UserError(ApiError):
     pass

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 class ApiField(object):
-    def __init__(self, name, label=None, obj_attr_name=None):
+    def __init__(self, name, label=None, obj_attr_name=None, help_text='', default=None):
         self.name = name
         self.obj_attr_name = obj_attr_name if obj_attr_name else name
         self.label = label if label else name
