@@ -188,7 +188,7 @@ class BaseApiResource(object):
         elif result == None and self.current_request.method == 'GET':
             return HttpResponse('{"message": "Object not found"}', status=404)
         elif result == True:
-            return HttpResponse('{"message": "Action succeeded"}', status=status_code)
+            return HttpResponse('{"succeeded": true, "message": "Action succeeded"}', status=status_code)
         else:
             raise Exception("Response was of an unexpected type")
 
