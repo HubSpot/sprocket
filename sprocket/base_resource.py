@@ -146,6 +146,7 @@ class BaseApiResource(object):
         else:
             method = method_endpoint.api_method_name
         self._adjust_kwargs(method_endpoint, request, kwargs)
+        self.execute_handlers(BaseEvents.pre_dispatch_request, request, kwargs)
         result = method(**kwargs)
         response = self._result_to_response(result)
         self.add_preset_response_info(response)
@@ -480,6 +481,7 @@ class BaseEvents(object):
 
     authenticate = Val()
     adjust_kwargs_for_request = Val()
+    pre_dispatch_request = Val()
     process_response = Val()
     dict_to_obj = Val()
     obj_to_dict = Val()
