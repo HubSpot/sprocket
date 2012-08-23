@@ -132,7 +132,7 @@ class DjangoModelResource(BaseApiResource):
     def _list_and_count(self, offset=0, limit=None, _include_total=True, **kwargs):
         filters = build_django_orm_filters_from_params(self, kwargs)
         self.execute_handlers(ModelEvents.adjust_orm_filters, filters)
-        queryset = self._meta.model_class.objects.filter(**kwargs)
+        queryset = self._meta.model_class.objects.filter(**filters)
         queryset = self.execute_filters(ModelEvents.chain_queryset, queryset)
         if limit != None:
             items = queryset[offset:offset+limit]
