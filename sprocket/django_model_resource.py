@@ -24,13 +24,13 @@ class DjangoModelResource(BaseApiResource):
         endpoints += [
             EndPoint(
                 r"^(?P<resource_name>%s)/$" % self._meta.resource_name,
-                GET('paged_list', ArgFilters.fields_from_query),
-                POST('create', ArgFilters.fields_from_json),
+                GET('paged_list', ArgFilters.all_from_query),
+                POST('create', ArgFilters.all_from_json),
                 ),
             EndPoint(
                 r"^(?P<resource_name>%s)/(?P<pk>[0-9a-zA-Z\-_]+)/$" % self._meta.resource_name,
-                GET('get', ArgFilters.fields_from_query),
-                PUT('update', ArgFilters.fields_from_json),
+                GET('get', ArgFilters.all_from_query),
+                PUT('update', ArgFilters.all_from_json),
                 DELETE('delete'),
                 ),
         ]
