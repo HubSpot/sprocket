@@ -23,11 +23,10 @@ class SimpleCase(TestCase, MockingBirdMixin):
         label = 'ATestLabel'
         nicknames = ['jack', 'jacko']
         obj = resource.create(label=label, published_at=dt, nicknames=nicknames)
-        
+
         obj2 = resource.get(pk=obj.pk)
         self.assertEquals(label, obj2.label)
         self.assertEquals(nicknames, obj2.nicknames)
-
 
         new_label = 'ANewLabel'
         resource.update(obj.pk, label=new_label)
@@ -57,14 +56,12 @@ class SimpleCase(TestCase, MockingBirdMixin):
         self.assertTrue(data['pk'] > 10000)
         self.assertEquals(r['x-sprocket-new-object-id'], str(data['pk']))
 
-
         r = c.get(
             '/api/simple-resource/%s' % data['pk'],
             content_type='application/json')
         self.assertEquals(200, r.status_code)
         data = simplejson.loads(r.content)
         self.assertEquals(label, data['label'])
-        
 
         new_label = 'NewLabel'
         post_data['label'] = new_label
@@ -128,26 +125,24 @@ class SimpleCase(TestCase, MockingBirdMixin):
         data = obj_data = simplejson.loads(r.content)
         self.assertEquals(200, r.status_code)
 
-
         r = c.put(
             '/api/simple-resource/%s' % data['pk'],
             data=simplejson.dumps({'nicknames': ['a', 'b', 'c', 'd', 'e', 'f']}),
             content_type='application/json')
         data = simplejson.loads(r.content)
         self.assertEquals(400, r.status_code)
-        
 
         # Illegal method
         r = c.delete(
             '/api/simple-resource',
             content_type='application/json')
         self.assertEquals(405, r.status_code)
-        
-        r = c.get('/api/simple-resource/%s?denyMe=true' % obj_data['pk'])
-        self.assertEquals(403, r.status_code)        
-        
 
-    url_conf =  'sprocket.test.test_base_resource'
+        r = c.get('/api/simple-resource/%s?denyMe=true' % obj_data['pk'])
+        self.assertEquals(403, r.status_code)
+
+    url_conf = 'sprocket.test.test_base_resource'
+
     def setUp(self):
         super(SimpleCase, self).setUp()
         self.org_urls = settings.ROOT_URLCONF
@@ -157,6 +152,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
     def tearDown(self):
         super(SimpleCase, self).tearDown()
         settings.ROOT_URLCONF = self.org_urls
+
 
 class SimpleObject(object):
     pk = 0
@@ -170,6 +166,7 @@ class SimpleObject(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
 
 class SimpleResource(BaseApiResource):
     _storage = {}
@@ -190,8 +187,6 @@ class SimpleResource(BaseApiResource):
             else:
                 cls = ApiField
             fields.append(cls(name))
-
-            
 
     def get_endpoints(self):
         endpoints = [
@@ -256,8 +251,6 @@ class SimpleResource(BaseApiResource):
     def on_authenticate(self, request):
         if request.GET.get('denyMe') == 'true':
             raise UnauthenticatedError("denyMe was true")
-        
-
 
 
 class DeletedUpdatedMixin(BaseMixin):

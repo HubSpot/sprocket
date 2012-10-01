@@ -27,15 +27,16 @@ class ResourceMeta(object):
         if not 'pk' in self.filtering:
             self.filtering['pk'] = ['exact']
 
+
 class BaseApiResource(object):
-    _meta = ResourceMeta() # Overwritten by the __new__ method, but kept here so pylint can do type inference
+    _meta = ResourceMeta()  # Overwritten by the __new__ method, but kept here so pylint can do type inference
 
     class Meta(ResourceMeta):
         resource_name = 'base-api-resource'
         authentication = DefaultAuthentication()
 
     def __new__(typ, *args, **kwargs):
-        obj = object.__new__(typ, *args, **kwargs)        
+        obj = object.__new__(typ, *args, **kwargs)
         obj._meta = obj.Meta()
         return obj
 
@@ -54,7 +55,7 @@ class BaseApiResource(object):
         class - however we have to do some trickery so that when they are called 'self' is the
         'self' of the mixin, not of the API Resource.
         '''
-        self.mixins = self.get_mixins() 
+        self.mixins = self.get_mixins()
         for mixin in self.mixins:
             mixin.api = self
             for attr_name in dir(mixin):
@@ -71,7 +72,6 @@ class BaseApiResource(object):
                     wrapped_method = self._wrap_mixin_method(attr)
                     setattr(self, attr_name, wrapped_method)
 
-
     def _wrap_mixin_method(self, attr, *args, **kwargs):
         def func(*args, **kwargs):
             return attr(*args, **kwargs)
@@ -81,15 +81,14 @@ class BaseApiResource(object):
         # Override in subclasses
         return []
 
-
     def _build_urls(self):
         urls = []
         for endpoint in self._get_all_endpoints():
             urls.append(url(
                 endpoint.url_pattern,
-                self.wrap(endpoint), 
+                self.wrap(endpoint),
                 name=endpoint.name))
-        return urls   
+        return urls
 
     def _get_all_endpoints(self):
         endpoints = []
@@ -108,8 +107,6 @@ class BaseApiResource(object):
         # Override in a subclass - these endpoints have precedence over any mixin endpoints
         return []
 
-
-
     # Dispatching a request
 
     def wrap(self, endpoint):
@@ -125,9 +122,9 @@ class BaseApiResource(object):
                 return self.handle_server_error(request, endpoint, ex, ex.to_response())
             except Exception, ex:
                 return self.handle_server_error(
-                    request, 
-                    endpoint, 
-                    ex, 
+                    request,
+                    endpoint,
+                    ex,
                     HttpResponse(
                         json.dumps({'message': 'There was an internal error'}),
                         status=500
@@ -250,7 +247,7 @@ class BaseApiResource(object):
 
     def serialize(self, data):
         return json.dumps(data)
-    
+
     def obj_to_dict(self, obj):
         includes = self._meta.includes
         excludes = self._meta.excludes
@@ -287,7 +284,6 @@ class BaseApiResource(object):
             field.dict_to_obj(data, obj)
         self.execute_handlers(BaseEvents.dict_to_obj, data, obj)
         return obj
-        
 
     def obj_list_to_str(self, objects):
         return json.dumps(self.obj_list_to_dicts(objects))
@@ -332,7 +328,7 @@ class BaseApiResource(object):
     def set_response_cookie(self, *args, **kwargs):
         self.thread_current.cookie_setters.append((args, kwargs))
 
-    @property        
+    @property
     def thread_current(self):
         c = getattr(_thread_local, 'current', None)
         if c == None:
@@ -344,6 +340,7 @@ class BaseApiResource(object):
         if not request.user.is_authenticated():
             raise UnauthenticatedError("This is not an authenticated request")
 
+
 class EmptyRequest(HttpRequest):
     def __nonzero__(self):
         return False
@@ -351,7 +348,7 @@ class EmptyRequest(HttpRequest):
 
 class ArgFilters(object):
     '''
-    Filters that take the incoming request data and generate 
+    Filters that take the incoming request data and generate
     the appropriate keyword arguments that will be passed to the api method
     '''
 
@@ -373,15 +370,15 @@ class ArgFilters(object):
     def from_keys(keys):
         if not hasattr(keys, '__iter__'):
             keys = [keys]
+
         def filter_func(api, request, kwargs):
             data = ArgFilters.get_json_data(request)
             for key in keys:
                 if key not in data:
                     raise UserError("Expected key %s in the posted json data" % key, 400)
                 kwargs[key] = data[key]
+
         return filter_func
-
-
 
     @staticmethod
     def keys_from_query(keys, all_required=True):
@@ -391,31 +388,43 @@ class ArgFilters(object):
                     if all_required:
                         raise UserError("Expected key %s in the posted json data" % key)
                 else:
-                    kwargs[key] = request.GET[key]
+                    values = request.GET.getlist(key)
+                    if len(values) > 1:
+                        kwargs[key] = values
+                    elif len(values) == 1:
+                        kwargs[key] = values[0]
         return filter_func
-
-
 
     @staticmethod
     def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit', 'order_by')):
         field_names = set([field.name for field in api.fields])
-        for name, value in request.GET.items():
+        for name, values in request.GET.lists():
             if name in field_names or name in additional_keys:
-                kwargs[name] = value
+                if len(values) > 1:
+                    kwargs[name] = values
+                elif len(values) == 1:
+                    kwargs[name] = values[0]
                 continue
             # We also allow queries in the form 'field_name__gt', 'field_name__lt' that get passed into filters
             i = name.find('__')
             if i > -1:
                 if name[:i] in field_names:
-                    kwargs[name] = value
+                    if len(values) > 1:
+                        kwargs[name] = values
+                    elif len(values) == 1:
+                        kwargs[name] = values[0]
 
-    _internal_query_keys = ['portalId', 'hapikey', 'scopes']                    
+    _internal_query_keys = ['portalId', 'hapikey', 'scopes']
+
     @staticmethod
     def all_from_query(api, request, kwargs):
-        for name, value in request.GET.items():
+        for name, values in request.GET.lists():
             if name not in ArgFilters._internal_query_keys:
-                kwargs[name] = value
-        
+                if len(values) > 1:
+                    kwargs[name] = values
+                elif len(values) == 1:
+                    kwargs[name] = values[0]
+
     @staticmethod
     def with_data(api, request, kwargs):
         try:
@@ -431,12 +440,12 @@ class ArgFilters(object):
         except Exception:
             raise UserError("Invalid syntax for the json data", status_code=400)
         return data
-        
+
 
 class EndPoint(object):
     def __init__(
-        self, 
-        url_pattern, 
+        self,
+        url_pattern,
         *end_point_methods,
         **kwargs):
         self.url_pattern = url_pattern
@@ -444,6 +453,7 @@ class EndPoint(object):
         for epm in end_point_methods:
             self.http_method_dict[epm.__class__.__name__.upper()] = epm
         self.name = kwargs.get('name', '')
+
 
 class EndPointMethod(object):
     '''
@@ -458,23 +468,28 @@ class EndPointMethod(object):
         if callable(arg_filters):
             arg_filters = [arg_filters]
         if to_response_func == None:
-            to_response_func = lambda o:None
+            to_response_func = lambda o: None
 
         self.api_method_name = api_method_name
         self.to_response_func = to_response_func
         self.arg_filters = arg_filters
 
+
 class PUT(EndPointMethod):
     pass
+
 
 class POST(EndPointMethod):
     pass
 
+
 class GET(EndPointMethod):
     pass
 
+
 class DELETE(EndPointMethod):
     pass
+
 
 class BaseEvents(object):
     __metaclass__ = magic_enum_meta_cls
@@ -486,6 +501,7 @@ class BaseEvents(object):
     dict_to_obj = Val()
     obj_to_dict = Val()
     init_fields = Val()
+
 
 class ApiError(Exception):
     def __init__(self, message, status_code, error_dict=None, errors=(), extra_data=None):
@@ -502,7 +518,7 @@ class ApiError(Exception):
             d['error_dict'] = self.error_dict
         if self.errors != None:
             d['errors'] = self.errors
-            
+
         if self.extra_data != None:
             d.update(self.extra_data)
         return d
@@ -514,12 +530,12 @@ class ApiError(Exception):
 class UserError(ApiError):
     pass
 
+
 class UnauthenticatedError(UserError):
     def __init__(self, message, status_code=403):
         super(UnauthenticatedError, self).__init__(message, status_code)
 
 
-        
 class CurrentRequestThreadHolder(object):
     def __init__(self, request):
         self.request = request
@@ -529,4 +545,3 @@ class CurrentRequestThreadHolder(object):
 
 _thread_local = threading.local()
 _thread_local.current = CurrentRequestThreadHolder(None)
-    
