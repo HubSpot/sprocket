@@ -55,6 +55,26 @@ class SimpleCase(TestCase, MockingBirdMixin):
         objs = my_resource.list(age=17)
         self.assertEquals(1, len(objs))
 
+        # test range
+        objs = my_resource.list(age__range=[17, 21])
+        self.assertEquals(2, len(objs))
+
+        # test gt
+        objs = my_resource.list(age__gt=17)
+        self.assertEquals(1, len(objs))
+
+        # test gte
+        objs = my_resource.list(age__gte=17)
+        self.assertEquals(2, len(objs))
+
+        # test lt
+        objs = my_resource.list(age__lt=21)
+        self.assertEquals(1, len(objs))
+
+        # test lte
+        objs = my_resource.list(age__lte=21)
+        self.assertEquals(2, len(objs))
+
     def test_http_crud(self):
         c = Client()
 
@@ -126,7 +146,6 @@ class SimpleCase(TestCase, MockingBirdMixin):
         # check on filtering
         r = c.get('/api/my-resource/?age__in=17&age__in=21')
         data = simplejson.loads(r.content)
-        print(data)
         self.assertEquals(200, r.status_code)
         self.assertEquals(2, len(data['objects']))
         self.assertEquals(2, data['total_count'])
@@ -134,10 +153,33 @@ class SimpleCase(TestCase, MockingBirdMixin):
         # check on filtering (single value)
         r = c.get('/api/my-resource/?age__in=17')
         data = simplejson.loads(r.content)
-        print(data)
         self.assertEquals(200, r.status_code)
         self.assertEquals(1, len(data['objects']))
         self.assertEquals(1, data['total_count'])
+
+        r = c.get('/api/my-resource/?age__gt=17')
+        data = simplejson.loads(r.content)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(1, len(data['objects']))
+        self.assertEquals(1, data['total_count'])
+
+        r = c.get('/api/my-resource/?age__gte=17')
+        data = simplejson.loads(r.content)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(2, len(data['objects']))
+        self.assertEquals(2, data['total_count'])
+
+        r = c.get('/api/my-resource/?age__lt=21')
+        data = simplejson.loads(r.content)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(1, len(data['objects']))
+        self.assertEquals(1, data['total_count'])
+
+        r = c.get('/api/my-resource/?age__lte=21')
+        data = simplejson.loads(r.content)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(2, len(data['objects']))
+        self.assertEquals(2, data['total_count'])
 
         # check passing multiple vals to something expecting a single
         r = c.get('/api/my-resource/?age=17&age=21')
@@ -192,7 +234,7 @@ class MyModelResource(DjangoModelResource):
         model_class = FakeModel
         filtering = {
             'email': ['exact'],
-            'age': ['exact', 'in']
+            'age': ['exact', 'range', 'gt', 'gte', 'lt', 'lte', 'in'],
             }
 
     def on_authenticate(self, request):

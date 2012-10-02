@@ -170,7 +170,7 @@ def build_django_orm_filters_from_params(api_resource, params):
 
         is_container = type(value) in (list, set, frozenset, tuple)
         # if we're doing an "in" query, all queries need to be in an iterable container, even if one variable.
-        if filter_type == "in":
+        if filter_type in ["in", "range"]:
             if not is_container:
                 value = [value]
         else:
