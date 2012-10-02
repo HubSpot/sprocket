@@ -42,24 +42,27 @@ class SimpleCase(TestCase, MockingBirdMixin):
         objs = my_resource.list()
         self.assertEquals(2, len(objs))
 
-
     def test_http_crud(self):
         c = Client()
-        label = 'MyLabelz'
+
         new_label = 'NewMylabelszz'
-        email = 'amail@maila.com'
-        second_label = 'MySecondLabel'
-        age = 17
         dt = datetime(2011, 7, 1, 12, 30, 0)
         dt_str = dt.strftime('%Y-%m-%d %H:%M:%S')
 
         post_data = {
-            'label': label,
+            'label': 'MyLabelz',
             'published_at': dt_str,
-            'age': age, 
-            'email': email
+            'age': 17,
+            'email': "amail@maila.com"
             }
-        
+
+        second_post_data = {
+            'label': 'MySecondLabel',
+            'published_at': dt_str,
+            'age': 21,
+            'email': 'amail2@maila.com',
+        }
+
         # Create an object
         r = c.post(
             '/api/my-resource/',
@@ -74,7 +77,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
         r = c.get('/api/my-resource/%s/' % data['id'])
         self.assertEquals(200, r.status_code)
         data = simplejson.loads(r.content)
-        self.assertTrue(label, data['label'])
+        self.assertTrue(post_data['label'], data['label'])
         self.assertTrue(dt_str, data['published_at'])
 
         # Update the object
@@ -90,7 +93,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
         # Post a second object
         r = c.post(
             '/api/my-resource/',
-            data=simplejson.dumps(post_data),
+            data=simplejson.dumps(second_post_data),
             content_type='application/json')
         self.assertEquals(200, r.status_code)
 
@@ -107,6 +110,38 @@ class SimpleCase(TestCase, MockingBirdMixin):
         self.assertEquals(1, len(data['objects']))
         self.assertEquals(2, data['total_count'])
 
+        # check on filtering
+        r = c.get('/api/my-resource/?age__in=17&age__in=21')
+        data = simplejson.loads(r.content)
+        print(data)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(2, len(data['objects']))
+        self.assertEquals(2, data['total_count'])
+
+        # check on filtering (single value)
+        r = c.get('/api/my-resource/?age__in=17')
+        data = simplejson.loads(r.content)
+        print(data)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(1, len(data['objects']))
+        self.assertEquals(1, data['total_count'])
+
+        # check passing multiple vals to something expecting a single
+        r = c.get('/api/my-resource/?age=17&age=21')
+        data = simplejson.loads(r.content)
+        print(data)
+        self.assertEquals(200, r.status_code)
+        self.assertEquals(1, len(data['objects']))
+        self.assertEquals(1, data['total_count'])
+
+        # check passing empty vals
+        # r = c.get('/api/my-resource/?age=')
+        # data = simplejson.loads(r.content)
+        # print(data)
+        # self.assertEquals(200, r.status_code)
+        # self.assertEquals(2, len(data['objects']))
+        # self.assertEquals(2, data['total_count'])
+
 
         # Delete the object
         r = c.delete(
@@ -117,8 +152,8 @@ class SimpleCase(TestCase, MockingBirdMixin):
         r = c.get('/api/my-resource/%s/' % obj_data['id'])
         self.assertEquals(404, r.status_code)
 
+    url_conf = 'sprocket.test.test_django_model_resource'
 
-    url_conf =  'sprocket.test.test_django_model_resource'
     def setUp(self):
         super(SimpleCase, self).setUp()
         self.org_urls = settings.ROOT_URLCONF
@@ -128,6 +163,7 @@ class SimpleCase(TestCase, MockingBirdMixin):
     def tearDown(self):
         super(SimpleCase, self).tearDown()
         settings.ROOT_URLCONF = self.org_urls
+
 
 class FakeModel(Model):
     id = IntegerField(primary_key=True)
@@ -140,20 +176,20 @@ class FakeModel(Model):
 
     def save(self):
         if not self.pk:
-            self.pk = long(time.time()*1000)
+            self.pk = long(time.time() * 1000)
         super(FakeModel, self).save()
 
     class Meta:
         db_table = 'sprocket_test_fake_model'
-        
+
 
 class MyModelResource(DjangoModelResource):
-
     class Meta(ResourceMeta):
         resource_name = 'my-resource'
         model_class = FakeModel
         filtering = {
-            'email': ['exact']
+            'email': ['exact'],
+            'age': ['exact', 'in']
             }
 
     def on_authenticate(self, request):
@@ -164,8 +200,8 @@ def _create_table():
     sql1 = """DROP TABLE IF EXISTS sprocket_test_fake_model"""
     sql2 = """
     CREATE TABLE sprocket_test_fake_model (
-        id INTEGER PRIMARY KEY ASC, 
-        label, 
+        id INTEGER PRIMARY KEY ASC,
+        label,
         published_at DATETIME,
         created DATETIME,
         updated DATETIME,
@@ -178,12 +214,8 @@ def _create_table():
     transaction.commit_unless_managed()
     return cursor.rowcount
 
-
 my_resource = MyModelResource()
 
 urlpatterns = patterns('',
     (r'^api/', include(my_resource.urls)),
 )
-
-
-
