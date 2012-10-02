@@ -1,12 +1,9 @@
-
-
 from datetime import datetime
-import inspect
 import time
 from unittest import TestCase
 
 from django.conf import settings
-from django.conf.urls.defaults import patterns, include, url
+from django.conf.urls.defaults import patterns, include
 from django.db.models import Model, CharField, DateTimeField as DjDateTimeField, EmailField, IntegerField
 from django.db import connections, transaction
 from django.test.client import Client
@@ -14,11 +11,8 @@ from django.utils import simplejson
 
 from mocking_bird.mocking import MockingBirdMixin
 
-from ..mixins import BaseMixin
-from ..auth import NoAuthentication
-from ..fields import DateTimeField, ApiField
 from ..django_model_resource import DjangoModelResource
-from ..base_resource import BaseApiResource, ResourceMeta, EndPoint, ArgFilters, POST, PUT, GET
+from ..base_resource import ResourceMeta
 
 
 class SimpleCase(TestCase, MockingBirdMixin):
@@ -26,9 +20,11 @@ class SimpleCase(TestCase, MockingBirdMixin):
         label = 'MyLabelz'
         email = 'amail@maila.com'
         second_label = 'MySecondLabel'
+
         obj = my_resource.create(
             label=label,
-            email=email)
+            email=email,
+            age=17)
         obj = my_resource.get(pk=obj.pk)
         self.assertEquals(label, obj.label)
 
@@ -37,10 +33,27 @@ class SimpleCase(TestCase, MockingBirdMixin):
 
         second_label = 'MySecondLabel'
         obj = my_resource.create(
-            label=second_label)
+            label=second_label,
+            age=21)
 
         objs = my_resource.list()
         self.assertEquals(2, len(objs))
+
+        # test multiple __in
+        objs = my_resource.list(age__in=[17, 21])
+        self.assertEquals(2, len(objs))
+
+        # test multiple __in with alternative container
+        objs = my_resource.list(age__in=set([17, 21]))
+        self.assertEquals(2, len(objs))
+
+        # test single __in
+        objs = my_resource.list(age__in=[17])
+        self.assertEquals(1, len(objs))
+
+        # test single equals
+        objs = my_resource.list(age=17)
+        self.assertEquals(1, len(objs))
 
     def test_http_crud(self):
         c = Client()
@@ -129,19 +142,9 @@ class SimpleCase(TestCase, MockingBirdMixin):
         # check passing multiple vals to something expecting a single
         r = c.get('/api/my-resource/?age=17&age=21')
         data = simplejson.loads(r.content)
-        print(data)
         self.assertEquals(200, r.status_code)
         self.assertEquals(1, len(data['objects']))
         self.assertEquals(1, data['total_count'])
-
-        # check passing empty vals
-        # r = c.get('/api/my-resource/?age=')
-        # data = simplejson.loads(r.content)
-        # print(data)
-        # self.assertEquals(200, r.status_code)
-        # self.assertEquals(2, len(data['objects']))
-        # self.assertEquals(2, data['total_count'])
-
 
         # Delete the object
         r = c.delete(
