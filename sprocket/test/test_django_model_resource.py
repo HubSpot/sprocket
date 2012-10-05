@@ -245,13 +245,14 @@ def _create_table():
     sql1 = """DROP TABLE IF EXISTS sprocket_test_fake_model"""
     sql2 = """
     CREATE TABLE sprocket_test_fake_model (
-        id INTEGER PRIMARY KEY ASC,
-        label,
+        id INTEGER PRIMARY KEY,
+        label VARCHAR(100),
         published_at DATETIME,
         created DATETIME,
         updated DATETIME,
-        email,
-        age INTEGER);
+        email VARCHAR(100),
+        age INTEGER
+    );
     """
     cursor = connections['default'].cursor()
     cursor.execute(sql1, ())
