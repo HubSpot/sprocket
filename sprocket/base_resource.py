@@ -289,10 +289,7 @@ class BaseApiResource(object):
         return json.dumps(self.obj_list_to_dicts(objects))
 
     def obj_list_to_dicts(self, objects):
-        l = []
-        for obj in objects:
-            l.append(self.obj_to_dict(obj))
-        return l
+        return [self.obj_to_dict(obj) for obj in objects]
 
     # Helpers - we store the request object in thread local so we don't pass it around everywhere
 
