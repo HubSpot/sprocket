@@ -1,9 +1,8 @@
 
-from .base_resource import EndPoint, ApiField, BaseEvents, UserError, ArgFilters, ResourceMeta, GET, PUT, DELETE, POST, BaseApiResource
+from .base_resource import EndPoint, UserError, ArgFilters, GET, PUT, DELETE, POST, BaseApiResource
 from .utils import Val, magic_enum_meta_cls
 from .fields import DateTimeField, ApiField, SimpleForeignKeyField, CharField, IntegerField, TextField
 from django.db import models
-from django.db.models import Model
 
 
 django_field_to_sprocket_field = {
@@ -16,8 +15,8 @@ django_field_to_sprocket_field = {
     models.PositiveIntegerField.__name__: IntegerField,
 }
 
-class DjangoModelResource(BaseApiResource):
 
+class DjangoModelResource(BaseApiResource):
 
     def get_endpoints(self):
         endpoints = []
@@ -41,7 +40,6 @@ class DjangoModelResource(BaseApiResource):
             cls = django_field_to_sprocket_field.get(field.__class__.__name__, ApiField)
             api_field = cls(field.name)
             fields.append(api_field)
-            
 
     def create(self, **kwargs):
         obj = self.dict_to_obj(kwargs)
@@ -76,10 +74,9 @@ class DjangoModelResource(BaseApiResource):
         for name in kwargs.keys():
             previous_data[name] = getattr(obj, name, None)
         obj = self.dict_to_obj(kwargs, obj)
-        
+
         self.execute_handlers(ModelEvents.pre_save_prepare, obj)
         self.execute_handlers(ModelEvents.pre_update_prepare, obj, previous_data)
-
 
         self.execute_handlers(ModelEvents.pre_save_validate, obj)
         self.execute_handlers(ModelEvents.pre_update_validate, obj, previous_data)
@@ -93,7 +90,7 @@ class DjangoModelResource(BaseApiResource):
         self.execute_handlers(ModelEvents.post_update, obj, previous_data)
 
         return obj
-        
+
     def handle_update_not_found(self, pk, **kwargs):
         raise UserError("Object not found for key %s" % pk, 404)
 
@@ -135,7 +132,7 @@ class DjangoModelResource(BaseApiResource):
         queryset = self._meta.model_class.objects.filter(**filters)
         queryset = self.execute_filters(ModelEvents.chain_queryset, queryset)
         if limit != None:
-            items = queryset[offset:offset+limit]
+            items = queryset[offset:offset + limit]
         else:
             items = list(queryset)
         items = self.execute_filters(ModelEvents.filter_objects, items)
@@ -148,7 +145,7 @@ class DjangoModelResource(BaseApiResource):
 
 def build_django_orm_filters_from_params(api_resource, params):
     '''
-    Takes filters that came in from a query string and turns them into 
+    Takes filters that came in from a query string and turns them into
     django ORM filters
     '''
     dj_filters = {}
@@ -168,10 +165,22 @@ def build_django_orm_filters_from_params(api_resource, params):
             value = False
         elif value in (None, 'nil', 'none', 'None'):
             value = None
-            
+
         filter_key = field_name + '__' + filter_type
 
-        # Hack to fix filtering of foreign keys, which need to be filtered 
+        is_container = type(value) in (list, set, frozenset, tuple)
+        # if we're doing an "in" query, all queries need to be in an iterable container, even if one variable.
+        if filter_type in ["in", "range"]:
+            if not is_container:
+                value = [value]
+        else:
+            if is_container:
+                if len(value) > 0:
+                    value = value[0]
+                else:
+                    value = None
+
+        # Hack to fix filtering of foreign keys, which need to be filtered
         # on the field without the _id part addded
         if isinstance(api_resource.field_by_name.get(field_name), SimpleForeignKeyField):
             if field_name.endswith('_id') and filter_type == 'exact':
@@ -181,12 +190,12 @@ def build_django_orm_filters_from_params(api_resource, params):
 
     return dj_filters
 
+
 def validate_filter(api, field_name, filter_type):
     if not field_name in api._meta.filtering:
         raise UserError('You cannot filter on the field %s ' % field_name, status_code=400)
     if not filter_type in api._meta.filtering.get(field_name, []):
         raise UserError('You cannot filter on the field %s in the form of %s ' % (field_name, filter_type), 400)
-
 
 
 class ModelEvents(object):
@@ -212,7 +221,7 @@ class ModelEvents(object):
     filter_objects = Val()
     list_objects = Val()
     get_object = Val()
-    
+
     delete_prepare = Val()
     delete_validate = Val()
     delete_process = Val()

@@ -6,6 +6,8 @@ venv
 *.sw*
 *.coverage
 
+sprocket.test.db
+
 *flymake.py
 
 # Packages
