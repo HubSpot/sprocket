@@ -55,8 +55,10 @@ class BaseApiResource(object):
         'self' of the mixin, not of the API Resource.
         '''
         self.mixins = self.get_mixins() 
+        self.mixins_by_name = {}
         for mixin in self.mixins:
             mixin.api = self
+            self.mixins_by_name[mixin.__class__.__name__] = mixin
             for attr_name in dir(mixin):
                 if not isinstance(attr_name, basestring):
                     continue
