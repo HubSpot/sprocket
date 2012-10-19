@@ -55,7 +55,7 @@ class BaseApiResource(object):
         class - however we have to do some trickery so that when they are called 'self' is the
         'self' of the mixin, not of the API Resource.
         '''
-        self.mixins = self.get_mixins() 
+        self.mixins = self.get_mixins()
         self.mixins_by_name = {}
         for mixin in self.mixins:
             mixin.api = self
@@ -439,6 +439,40 @@ class ArgFilters(object):
         except Exception:
             raise UserError("Invalid syntax for the json data", status_code=400)
         return data
+
+    @staticmethod
+    def convert_to_bool_values(param_names=None):
+        '''
+        Returns a filter function to parse parameters (all or just the given ones) as specific types
+        @param_names - (optional) - string names of boolean-valued params
+        '''
+        def filter_func(api, request, kwargs):
+            for key, val in kwargs.items():
+                if param_names == None or (param_names and key in param_names):
+                    if val == 'true':
+                        kwargs[key] = True
+                    elif val == 'false':
+                        kwargs[key] = False
+
+        return filter_func
+
+    @staticmethod
+    def convert_to_int_values(param_names=None):
+        '''
+        Returns a filter function to parse parameters (all or just the given ones) as integer values
+        @param_names - (optional) - string names of integer-valued params
+        '''
+        def filter_func(api, request, kwargs):
+            for key, val in kwargs.items():
+                # Ensure object is a string before trying to determine if its content is of integer value
+                if val and hasattr(val, 'isdigit') and val.isdigit() and \
+                   (param_names == None or (param_names and key in param_names)):
+                    try:
+                        kwargs[key] = int(val)
+                    except:
+                        pass
+
+        return filter_func
 
 
 class EndPoint(object):
