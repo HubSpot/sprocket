@@ -395,6 +395,12 @@ class ArgFilters(object):
         return filter_func
 
     @staticmethod
+    def fields_from_query_plus(additional_keys):
+        def filter_func(api, request, kwargs):
+            return ArgFilters.fields_from_query(api, request, kwargs, additional_keys=additional_keys)
+        return filter_func
+
+    @staticmethod
     def fields_from_query(api, request, kwargs, additional_keys=('offset', 'limit', 'order_by')):
         field_names = set([field.name for field in api.fields])
         for name, values in request.GET.lists():
