@@ -474,6 +474,26 @@ class ArgFilters(object):
 
         return filter_func
 
+    @staticmethod
+    def convert(**keys_to_callable):
+        '''
+        k1=fn1,
+        k2=fn2,
+        ...
+        '''
+        def filter_func(api, request, kwargs):
+            for key, val in kwargs.items():
+                # Ensure object is a string before trying to determine if its content is of integer value
+                if key not in keys_to_callable:
+                    continue
+
+                try:
+                    kwargs[key] = keys_to_callable[key](val)
+                except:
+                    pass
+
+        return filter_func
+
 
 class EndPoint(object):
     def __init__(
