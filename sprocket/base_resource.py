@@ -353,9 +353,16 @@ class ArgFilters(object):
 
     @staticmethod
     def all_from_json(api, request, kwargs):
-        if request.method in ('POST', 'PUT'):
-            data = ArgFilters.get_json_data(request)
-            kwargs.update(data)
+        return ArgFilters.all_from_json_custom()(api, request, kwargs)
+
+    @staticmethod
+    def all_from_json_custom(allow_empty=False):
+        def filter_func(api, request, kwargs):
+            if request.method in ('POST', 'PUT'):
+                data = ArgFilters.get_json_data(request, allow_empty)
+                if data:
+                    kwargs.update(data)
+        return filter_func
 
     @staticmethod
     def fields_from_json(api, request, kwargs):
@@ -439,9 +446,13 @@ class ArgFilters(object):
         kwargs['data'] = data
 
     @staticmethod
-    def get_json_data(request):
+    def get_json_data(request, allow_empty=False):
+        post_data = request.raw_post_data
+        if allow_empty and \
+           (post_data is None or len(post_data) == 0 or post_data == ''):
+            return None
         try:
-            data = json.loads(request.raw_post_data)
+            data = json.loads(post_data)
         except Exception:
             raise UserError("Invalid syntax for the json data", status_code=400)
         return data
@@ -477,7 +488,6 @@ class ArgFilters(object):
                         kwargs[key] = int(val)
                     except:
                         pass
-
         return filter_func
 
     @staticmethod
