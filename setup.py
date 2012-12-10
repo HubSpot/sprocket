@@ -10,7 +10,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'django',
-        'mocking_bird'
+        "hubmockingbird>=1.0,==hubspot",
         ],
     platforms=["any"],
 )
