@@ -9,7 +9,7 @@ setup(
     url=' http://hubspot.com/',
     packages=find_packages(),
     install_requires=[
-        'django',
+        'Django',
         "hubmockingbird>=1.0,==hubspot",
         ],
     platforms=["any"],
