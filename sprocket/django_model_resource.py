@@ -127,9 +127,9 @@ class DjangoModelResource(BaseApiResource):
         return self._list_and_count(_include_total=False, **kwargs)
 
     def _list_and_count(self, offset=0, limit=None, _include_total=True, **kwargs):
-        filters = build_django_orm_filters_from_params(self, kwargs)
-        self.execute_handlers(ModelEvents.adjust_orm_filters, filters)
-        queryset = self._meta.model_class.objects.filter(**filters)
+        q_filters, filters = build_django_orm_filters_from_params(self, kwargs)
+        self.execute_handlers(ModelEvents.adjust_orm_filters, q_filters, filters)
+        queryset = self._meta.model_class.objects.filter(*q_filters, **filters)
         queryset = self.execute_filters(ModelEvents.chain_queryset, queryset)
         if limit != None:
             items = queryset[offset:offset + limit]
@@ -148,6 +148,7 @@ def build_django_orm_filters_from_params(api_resource, params):
     Takes filters that came in from a query string and turns them into
     django ORM filters
     '''
+    q_filters = []
     dj_filters = {}
     for key, value in params.items():
         parts = key.split('__')
@@ -165,6 +166,12 @@ def build_django_orm_filters_from_params(api_resource, params):
             value = False
         elif value in (None, 'nil', 'none', 'None'):
             value = None
+
+        if filter_type == 'ne':
+            q_filters.append(
+                ~models.Q(**{field_name: value})
+            )
+            continue
 
         filter_key = field_name + '__' + filter_type
 
@@ -188,7 +195,7 @@ def build_django_orm_filters_from_params(api_resource, params):
 
         dj_filters[filter_key] = value
 
-    return dj_filters
+    return q_filters, dj_filters
 
 
 def validate_filter(api, field_name, filter_type):
