@@ -1,8 +1,7 @@
 
 
-
 class Authentication(object):
-    def authentication(self, request, endpoint):
+    def authenticate(self, request, endpoint):
         raise NotImplementedError("Need to implement in a base class")
 
 class DefaultAuthentication(Authentication):
