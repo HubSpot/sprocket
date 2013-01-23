@@ -26,7 +26,8 @@ Serialization/Deserialization
 ```
 obj_to_str(obj)
 ```
-obj <= instance of the resource’s model_class
+__obj__
+instance of the resource’s model_class
 
 Returns a string representation of the object
 
