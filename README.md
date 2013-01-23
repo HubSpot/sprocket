@@ -1,10 +1,12 @@
 Sprocket
+========
 
 A better RESTful API framework for Python and Django.
 
 Sprocket makes it easy to expose normal python functions in a web API through a restful interface. It works out of the box with Django models and provides a mixin and events system for easily adding in reusable, self-contained components into API.
 
 Core Ideas
+=========
 
 When using Sprocket, you will define Resource classes containing normal Python methods which perform the tasks of your API. For example, a Message resource may contain a send() method.
 
@@ -18,6 +20,7 @@ Finally, you may communicate between Mixins and resources with Events. Defining 
 BaseApiResource
 
 Serialization/Deserialization
+============================
 
 
 obj_to_str(obj)
@@ -58,7 +61,9 @@ obj_list_to_dicts(objects)
 objects <= list of instances of resource’s model_class
 
 Returns a list of dictionary representations of the objects, converted using obj_to_dict().
+
 Helpers
+=======
 
 These are tracked using the currently-running thread.
 
@@ -95,6 +100,7 @@ model_class
 A Django Model class. Required when using DjangoModelResource.
 
 ArgFilters
+========================
 
 ArgFilters make it easy to retrieve input parameters during an API call. They are passed into EndPointMethod constructors.
 
@@ -124,6 +130,7 @@ with_data
 Identical to all_from_json
 
 Typecasting Argfilters
+----------------------
 
 These can be chained after a data-fetching Argfilter to typecast values.
 
