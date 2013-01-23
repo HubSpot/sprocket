@@ -2,17 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name='sprocket',
-    version='1.0',
-    description='Easily add an API to a django project.',
+    version='0.1',
+    description='Web API organization with Mixins.',
     author='Patrick Fitzsimmons',
-    author_email='devteam+sprocket@hubspot.com',
+    author_email='pfitzsimmons@hubspot.com',
     url=' http://hubspot.com/',
     packages=find_packages(),
     install_requires=[
         'Django',
-        "hubmockingbird>=1.0,==hubspot",
         ],
     platforms=["any"],
 )
-
-
