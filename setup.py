@@ -10,7 +10,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'Django',
-        'nose',
+        'nose==1.1.2',
         ],
     platforms=["any"],
 )
