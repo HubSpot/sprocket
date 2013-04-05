@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .utils import MagicEnum, Val, magic_enum_meta_cls
 from .auth import DefaultAuthentication
 from .fields import ApiField
-
+from .mixins import BaseMixin
 
 class ResourceMeta(object):
     resource_name = None
@@ -56,10 +56,31 @@ class BaseApiResource(object):
         'self' of the mixin, not of the API Resource.
         '''
         self.mixins = self.get_mixins()
+        # New: rather than doing this magic where we merge in the mixin methods, we can just assign
+        # mixin as an attribute of the resource
+        for cls_attr_name in dir(self):
+            if cls_attr_name.startswith('__'):
+                continue
+            try:
+                mixin = getattr(self, cls_attr_name)
+            except:
+                continue
+            if not isinstance(mixin, BaseMixin):
+                continue
+            mixin._should_merge_in_methods = False
+            # Set the parent api on the mixin, in case the mixin was defined at the class level
+            # and doesn't have access to the singleton
+            if not getattr(mixin, 'api'):
+                mixin.api = self
+            self.mixins.append(mixin)
+
         self.mixins_by_name = {}
         for mixin in self.mixins:
             mixin.api = self
+            merge_in_methods = getattr(mixin, '_should_merge_in_methods', True)
             self.mixins_by_name[mixin.__class__.__name__] = mixin
+            if not merge_in_methods:
+                continue
             for attr_name in dir(mixin):
                 if not isinstance(attr_name, basestring):
                     continue
@@ -73,6 +94,7 @@ class BaseApiResource(object):
                 if inspect.ismethod(attr):
                     wrapped_method = self._wrap_mixin_method(attr)
                     setattr(self, attr_name, wrapped_method)
+            
 
     def _wrap_mixin_method(self, attr, *args, **kwargs):
         def func(*args, **kwargs):
@@ -442,7 +464,7 @@ class ArgFilters(object):
         try:
             data = json.loads(request.raw_post_data)
         except Exception:
-            raise UserError("Invalid syntax for the json data", status_code=400)
+            raise UserError("Invalid syntax for the json data %s " % request.raw_post_data, status_code=400)
         kwargs['data'] = data
 
     @staticmethod
@@ -454,7 +476,7 @@ class ArgFilters(object):
         try:
             data = json.loads(post_data)
         except Exception:
-            raise UserError("Invalid syntax for the json data", status_code=400)
+            raise UserError("Invalid syntax for the json data" % post_data, status_code=400)
         return data
 
     @staticmethod
@@ -597,7 +619,10 @@ class ApiError(Exception):
 
 
 class UserError(ApiError):
-    pass
+    def __init__(self, message, status_code=400, error_dict=None, errors=(), extra_data=None):
+        super(UserError, self).__init__(message, status_code, error_dict=error_dict, errors=errors, extra_data=extra_data)
+
+ 
 
 
 class UnauthenticatedError(UserError):

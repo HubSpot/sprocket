@@ -164,7 +164,7 @@ def build_django_orm_filters_from_params(api_resource, params):
             value = True
         elif value in [False, 'false', 'False']:
             value = False
-        elif value in (None, 'nil', 'none', 'None'):
+        elif value in (None, 'nil', 'none', 'None') and filter_type == 'exact':
             value = None
 
         if filter_type == 'ne':
