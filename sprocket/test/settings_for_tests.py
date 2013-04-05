@@ -30,3 +30,4 @@ CACHES = {
 
 ROOT_URLCONF = ''
 
+SECRET_KEY = 'not-empty'
