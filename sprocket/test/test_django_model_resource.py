@@ -255,6 +255,7 @@ def _create_table():
     """
     cursor = connections['default'].cursor()
     cursor.execute(sql1, ())
+    transaction.commit_unless_managed()
     cursor.execute(sql2, ())
     transaction.commit_unless_managed()
     return cursor.rowcount
