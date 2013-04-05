@@ -11,6 +11,7 @@ setup(
     install_requires=[
         'Django',
         'nose==1.1.2',
+        'mockery',
         ],
     platforms=["any"],
 )
