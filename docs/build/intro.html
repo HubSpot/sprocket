@@ -1,0 +1,161 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="chrome=1"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"><title>sprocket</title><link rel="icon" href="http://static.hubspot.com/favicon.ico"><link type="text/css" rel="stylesheet" href="https://static2cdn.hubspot.com/hubspot_public_assets/static-1.112/shared/sass/hubspot_public_assets.css"><link type="text/css" rel="stylesheet" href="https://static.hubspot.com/bundles/navigation.css"><link rel="stylesheet" href="/documentation-example/css/print.css"><link rel="stylesheet" href="/documentation-example/css/navigation.css"><link rel="stylesheet" href="/documentation-example/css/documentation.css"><link rel="stylesheet" href="/documentation-example/css/highlight/github.css"><script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script><script type="text/javascript" src="//use.typekit.net/jbn8qxr.js"></script><script type="text/javascript">try{Typekit.load();}catch(e){}
+</script></head><body><div id="hs-nav-v3" class="nav-width-flex signed-out-nav">
+    <div class="hs-nav-section main-nav">
+        <div class="nav-section-inner">
+            <ul class="nav-links-left">
+                <li class="first"><a class="nav-logo" href="http://www.hubspot.com/"><img height="34" src="https://static.hubspot.com/style-guide/img/nav-sprocket.png" width="29"></a></li>
+                <li>
+                    <a href="http://hubspot.github.com">
+                        HubSpot Open Source
+                    </a>
+                </li>
+                <li>
+                    <a href="http://dev.hubspot.com">
+                        Development Team
+                    </a>
+                </li>
+            </ul>
+            <ul class="nav-links-right">
+                <li class="first">
+                    <a href="http://dev.hubspot.com/jobs/" class="sign-in">Work for HubSpot</a>
+                </li>
+                <li>
+                    <span class="try-label">We're hiring:</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div><div class="hs-page-width-normal"><div class="row-fluid"><div class="span12"><h1 class="hs-doc-page-header">sprocket</h1></div></div></div><div class="hs-page-width-normal"><div class="row-fluid"><div class="span3"><div class="hs-doc-sidenav"><nav><ul class="hs-public-sidenav"><li class=""><a href="index.html">Home</a></li><li><b>Annotated source</b></li></ul></nav></div></div><div class="span9"><div class="hs-doc-content"><h1>Sprocket</h1>
+<p>A better RESTful API framework for Python and Django.</p>
+<p>Sprocket makes it easy to expose normal python functions in a web API through a restful interface. It works out of the box with Django models and provides a mixin and events system for easily adding in reusable, self-contained components into API.</p>
+<h1>Core Ideas</h1>
+<p>When using Sprocket, you will define Resource classes containing normal Python methods which perform the tasks of your API. For example, a Message resource may contain a send() method.</p>
+<p>To expose these methods in an API, you will add EndPoints to your Resource class. An EndPoint contains a URL, a method to call, and any validation on the input from the request.</p>
+<p>Resource classes are configured by defining inner Meta classes. Some of this configuration includes the “resource name”, which is reused throughout the Resource’s URLs.</p>
+<p>To define reusable behavior which can appear in multiple Resources, you may create Mixin classes. Just like Resources, Mixin classes may define additional EndPoints.</p>
+<p>Finally, you may communicate between Mixins and resources with Events. Defining event handlers allows you to customize behavior flexibly.</p>
+<h1>Serialization/Deserialization</h1>
+<pre><code><span class="function"><span class="title">obj_to_str</span><span class="params">(obj)</span></code></pre>
+<p><code>obj</code> instance of the resource’s model_class</p>
+<p>Returns a string representation of the object</p>
+<pre><code><span class="function"><span class="title">serialize</span><span class="params">(data)</span></code></pre>
+<p><code>data</code> dictionary</p>
+<p>Returns a JSON string representation of the given dictionary.</p>
+<pre><code><span class="function"><span class="title">obj_to_dict</span><span class="params">(obj)</span></code></pre>
+<p><code>obj</code> instance of the resource’s model_class</p>
+<p>+triggers: BaseEvents.obj<em>to_dict
+Returns a dictionary representation of the object, with each of the resources _fields</em> stored in a key. It respects any <em>includes</em> or <em>excludes</em> lists you define in the Meta object.</p>
+<pre><code><span class="function"><span class="title">str_to_obj</span><span class="params">(post_data_byte_str)</span></code></pre>
+<p><code>post_data_byte_str</code> string to convert</p>
+<p>Deserializes the post_data_byte_str and returns an instance of the resource’s model_class.</p>
+<pre><code><span class="function"><span class="title">dict_to_obj</span><span class="params">(data, obj=<span class="variable">None</span>)</span></code></pre>
+<p><code>data</code> dictionary</p>
+<p><code>obj</code> instance of the resource’s model_class
++triggers: BaseEvents.dict_to_obj</p>
+<p>Assigns each value in data to the obj, if given, or a new instance of the resource’s model_class.</p>
+<pre><code><span class="function"><span class="title">obj_list_to_str</span><span class="params">(objects)</span></code></pre>
+<p><code>objects</code> list of instances of the resource’s model_class</p>
+<p>Serializes the list of objects into a JSON-encoded list. For example, the python list:</p>
+<pre><code>[<span class="xml"><span class="tag">&lt;<span class="title">emptyObj</span>&gt;</span>, <span class="tag">&lt;<span class="title">emptyObj</span>&gt;</span>]</span></code></pre>
+<p>would return </p>
+<pre><code>“<span class="attr_selector">[{}, {}]</span>”</code></pre>
+<pre><code><span class="function"><span class="title">obj_list_to_dicts</span><span class="params">(objects)</span></code></pre>
+<p><code>objects</code> list of instances of resource’s model_class</p>
+<p>Returns a list of dictionary representations of the objects, converted using obj_to_dict().</p>
+<h1>Helpers</h1>
+<p>These are tracked using the currently-running thread.</p>
+<pre><code><span class="attribute">current_request</code></pre>
+<pre><code><span class="attribute">current_user</code></pre>
+<pre><code><span class="attribute">current_username</code></pre>
+<pre><code><span class="attribute">current_response_status_code</code></pre>
+<pre><code><span class="function"><span class="title">set_current_status_code</span><span class="params">(status_code)</span></code></pre>
+<p><code>status_code</code> int</p>
+<pre><code><span class="function"><span class="title">set_response_header</span><span class="params">(name, header)</span></code></pre>
+<p><code>name</code> string</p>
+<p><code>header</code> string</p>
+<pre><code>set_response_cookie<span class="comment">(*args, **kwargs)</code></pre>
+<pre><code><span class="function"><span class="title">on_authenticate</span><span class="params">(request)</span></code></pre>
+<p>Checks if user is authenticated. Should be overridden in subclasses.
+ResourceMeta</p>
+<p>BaseApiResource expects an internally-defined class called Meta, which should be a subclass of ResourceMeta. ResourceMeta subclasses may define the following class attributes:</p>
+<pre><code><span class="attribute">resource_name</code></pre>
+<p>A string used to identify the resource in urls. For example, a “BlogPost” Resource might have the name “blog-post” and appear in URLs such as /blog-post/31.</p>
+<pre><code><span class="attribute">authentication</code></pre>
+<p>A helper object which defines the authentication method used to access this resource.</p>
+<pre><code><span class="attribute">model_class</code></pre>
+<p>A Django Model class. Required when using DjangoModelResource.</p>
+<h1>ArgFilters</h1>
+<p>ArgFilters make it easy to retrieve input parameters during an API call. They are passed into EndPointMethod constructors.</p>
+<pre><code><span class="attribute">all_from_json</code></pre>
+<p>Target method receives the entire JSON dictionary, as converted into a kwargs dictionary. Considers an absence of a valid JSON string an exception.</p>
+<pre><code><span class="function"><span class="title">all_from_json_custom</span><span class="params">(allow_empty=<span class="variable">False</span>)</span></code></pre>
+<p><code>allow_empty</code> boolean</p>
+<p>Identical to all_from_json, but if allow_empty is True, then no error is raised if the request contains no JSON at all.</p>
+<pre><code><span class="attribute">fields_from_json</code></pre>
+<p>Target method receives one keyword argument for each of the fields defined in the resource’s ResourceMeta, if the request contains a value for that field.</p>
+<pre><code><span class="function"><span class="title">from_keys</span><span class="params">(keys)</span></code></pre>
+<p><code>keys</code> list of strings</p>
+<p>Target method receives one keyword argument for each of the strings in <em>keys</em>. Requests missing one or more key raise a UserError.</p>
+<pre><code><span class="function"><span class="title">keys_from_query</span><span class="params">(keys, all_required=<span class="variable">True</span>)</span></code></pre>
+<p><code>keys</code> list of strings</p>
+<p><code>all_required</code> boolean</p>
+<p>Target method receives one keyword for each key/value in the request’s querystring. If all<em>required is set to true, any _keys</em> not present in the qstring will return an error.</p>
+<pre><code><span class="attribute">all_from_query</code></pre>
+<p>Target method receives one keyword and value for each key/value in the request’s querystring.</p>
+<pre><code><span class="attribute">with_data</code></pre>
+<p>Identical to all_from_json</p>
+<h1>Typecasting Argfilters</h1>
+<p>These can be chained after a data-fetching Argfilter to typecast values.</p>
+<pre><code><span class="function"><span class="title">convert_to_bool_values</span><span class="params">(param_names=<span class="variable">None</span>)</span></code></pre>
+<p><code>param_names</code> list of strings</p>
+<p>Params given are converted to boolean values in place before continuing on to the target method.</p>
+<pre><code><span class="function"><span class="title">convert_to_int_values</span><span class="params">(param_names=<span class="variable">None</span>)</span></code></pre>
+<p><code>param_names</code> list of strings</p>
+<p>Params given are converted to integer values in place before continuing on to the target method.</p>
+<pre><code>convert<span class="comment">(**kwargs)</code></pre>
+<p><code>kwargs</code> key/values, where values are all callables.</p>
+<p>If a key in the kwargs matches one in the input, the input value is passed through the value.
+For example:</p>
+<pre><code><span class="class">Argfilters</span>.convert(user_id=lambda <span class="method">x:</span> int(x) + <span class="number">10</span>)
+<span class="method">input:</span>
+{“user_id”: <span class="number">32</span>, “foo”: “bar”}
+<span class="method">output:</span>
+{“user_id”: <span class="number">42</span>, “foo”: “bar”}</code></pre>
+<h1>Adding Endpoints</h1>
+<p>EndPoints describe a URL-to-method mapping, with additional validation parameters.</p>
+<pre><code><span class="class"><span class="keyword">class</span> <span class="title">EndPoint</span><span class="params">(url_pattern, *end_point_methods, **kwargs)</span></code></pre>
+<p><code>url_pattern</code> regex, including capture groups for additional parameters which should be passed on to the target method</p>
+<p><code>end_point_methods</code> any additional positional arguments after url_pattern indicate EndPointMethods associate with that EndPoint</p>
+<p>Examples:</p>
+<pre><code>EndPoint(
+    <span class="string">r"^%s/changes$"</span> % self._meta.resource_name,
+    GET(“get_changes”)
+)</code></pre>
+<pre><code><span class="class"><span class="keyword">class</span> <span class="title">EndPointMethod</span><span class="params">(api_method_name, arg_filters)</span></code></pre>
+<p><code>api_method_name</code> string, must match method name defined for resource
+<code>arg_filters</code> iterable containing zero or more ArgFilters</p>
+<p>This is a base class which describes a mapping between an HTTP Method and a Python method defined for your resource, with ArgFilters providing validation on the arguments.</p>
+<pre><code><span class="class"><span class="keyword">class</span> <span class="title">PUT</span></span>
+<span class="class"><span class="keyword">class</span> <span class="title">POST</span></span>
+<span class="class"><span class="keyword">class</span> <span class="title">GET</span></span>
+<span class="class"><span class="keyword">class</span> <span class="title">DELETE</span></span></code></pre>
+<pre><code><span class="class"><span class="keyword">class</span> <span class="title">ApiError</span><span class="params">(message, status_code, error_dict, errors)</span></code></pre>
+<p><code>message</code> string with a message for the API user</p>
+<p><code>status_code</code> integer with an HTTP error code</p>
+<p><code>error_dict</code> dictionary with multiple messages for the user</p>
+<p><code>error</code> list of strings, messages for the user</p>
+<p>Raise an ApiError exception to let Sprocket handle rendering an error response for you.</p>
+<pre><code><span class="attribute">UserError</code></pre>
+<p>Subclass of ApiError to designate error caused by users’ mistakes.</p>
+<h1>DjangoModelResource</h1>
+<p>A subclass of BaseApiResource which defines EndPoints for basic CRUD operations using Django’s ORM.</p>
+</div></div></div></div><div class="hs3-public-footer"><div class="row-fluid hs-page-width-normal"><div class="span3 hidden-phone"><h3>HubSpot</h3><ul><li><a href="http://www.hubspot.com">Home</a></li><li><a href="http://www.hubspot.com/software">Products</a></li><li><a href="http://www.hubspot.com/internet-marketing-company/">About</a></li></ul></div><div class="span3"><h3>Projects</h3><ul><li><a href="http://github.hubspot.com/messenger">Messenger</a></li><li><a href="http://github.hubspot.com/facewall">Facewall</a></li><li><a href="http://github.hubspot.com/jquery-zoomer">jQuery Zoomer</a></li><li><a href="http://github.hubspot.com/humanize">Humanize</a></li><li><a href="http://github.hubspot.com/teeble">Teeble</a></li></ul></div><div class="span3"><h3>Development Team</h3><ul><li><a href="http://dev.hubspot.com">Home</a></li><li><a href="http://dev.hubspot.com/teams">Teams</a></li><li><a href="http://dev.hubspot.com/people">People</a></li><li><a href="http://dev.hubspot.com/jobs">Jobs</a></li></ul></div><div class="span3 hidden-phone"><h3>Developer API</h3><ul><li><a href="http://developers.hubspot.com/">Developer Documentation</a></li></ul></div></div></div><!-- Start of Async HubSpot Analytics Code -->
+<script type="text/javascript">
+    (function(d,s,i,r) {
+        if (d.getElementById(i)){return;}
+        var n=d.createElement(s),e=d.getElementsByTagName(s)[0];
+        n.id=i;n.src='//js.hubspot.com/analytics/'+(Math.ceil(new Date()/r)*r)+'/51294.js';
+        e.parentNode.insertBefore(n, e);
+    })(document,"script","hs-analytics",300000);
+</script>
+<!-- End of Async HubSpot Analytics Code --></body></html>
